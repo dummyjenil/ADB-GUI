@@ -1,0 +1,85 @@
+{
+  "themes": [
+    {
+      "id": "cyber-yellow",
+      "name": "Cyberpop Yellow & Cyan",
+      "description": "High contrast neo-brutalism with electric yellow accents and bold black outlines",
+      "colors": {
+        "bg": "#0f172a",
+        "cardBg": "#1e293b",
+        "cardHeaderBg": "#fef08a",
+        "cardHeaderText": "#000000",
+        "primary": "#fef08a",
+        "primaryText": "#000000",
+        "secondary": "#a5f3fc",
+        "secondaryText": "#000000",
+        "accent": "#fbcfe8",
+        "accentText": "#000000",
+        "border": "#000000",
+        "text": "#f8fafc",
+        "textMuted": "#94a3b8",
+        "shadow": "#000000"
+      },
+      "animation": {
+        "duration": "0.15s",
+        "timing": "cubic-bezier(0.34, 1.56, 0.64, 1)",
+        "pressOffset": "3px",
+        "hoverLift": "-3px"
+      }
+    },
+    {
+      "id": "retro-arcade",
+      "name": "Retro Arcade Neon",
+      "description": "Retro cyberpunk vibes with neon pink, cyan, and lime accents",
+      "colors": {
+        "bg": "#09090b",
+        "cardBg": "#18181b",
+        "cardHeaderBg": "#f472b6",
+        "cardHeaderText": "#000000",
+        "primary": "#f472b6",
+        "primaryText": "#000000",
+        "secondary": "#bef264",
+        "secondaryText": "#000000",
+        "accent": "#38bdf8",
+        "accentText": "#000000",
+        "border": "#000000",
+        "text": "#fafafa",
+        "textMuted": "#a1a1aa",
+        "shadow": "#000000"
+      },
+      "animation": {
+        "duration": "0.2s",
+        "timing": "cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+        "pressOffset": "4px",
+        "hoverLift": "-4px"
+      }
+    },
+    {
+      "id": "paper-white",
+      "name": "Classic Paper Light",
+      "description": "Crisp paper-white theme with bold black 3D borders and vibrant ink badges",
+      "colors": {
+        "bg": "#f4f4f0",
+        "cardBg": "#ffffff",
+        "cardHeaderBg": "#3b82f6",
+        "cardHeaderText": "#ffffff",
+        "primary": "#fbbf24",
+        "primaryText": "#000000",
+        "secondary": "#60a5fa",
+        "secondaryText": "#000000",
+        "accent": "#f43f5e",
+        "accentText": "#ffffff",
+        "border": "#000000",
+        "text": "#0f172a",
+        "textMuted": "#64748b",
+        "shadow": "#000000"
+      },
+      "animation": {
+        "duration": "0.12s",
+        "timing": "ease-out",
+        "pressOffset": "2px",
+        "hoverLift": "-2px"
+      }
+    }
+  ]
+}
