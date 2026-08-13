@@ -4,6 +4,10 @@ pub mod app_manager;
 pub mod terminal_service;
 pub mod file_manager;
 pub mod logcat_service;
+pub mod port_forward_service;
+pub mod screen_tools;
+pub mod uiautomator_service;
+pub mod notification_service;
 
 use adb_service::*;
 use device_dashboard::*;
@@ -11,6 +15,10 @@ use app_manager::*;
 use terminal_service::*;
 use file_manager::*;
 use logcat_service::*;
+use port_forward_service::*;
+use screen_tools::*;
+use uiautomator_service::*;
+use notification_service::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -74,10 +82,26 @@ pub fn run() {
             stop_logcat_stream,
             clear_logcat_buffer,
             get_device_processes,
-            export_logcat_file
+            export_logcat_file,
+            list_port_forwards,
+            list_port_reverses,
+            add_port_forward,
+            add_port_reverse,
+            remove_port_forward,
+            remove_port_reverse,
+            clear_all_port_forwards,
+            clear_all_port_reverses,
+            test_tcp_port_connection,
+            take_screenshot,
+            start_screen_recording,
+            stop_screen_recording,
+            save_media_file,
+            dump_ui_hierarchy,
+            get_device_notifications
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
 
 

@@ -1,6 +1,5 @@
 use std::process::Command;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;

@@ -10,12 +10,28 @@ import { FileManager } from "./components/FileManager/FileManager";
 import { ScreenMirroringTodo } from "./components/ScreenMirroringTodo";
 import { ShellTerminal } from "./components/Terminal/ShellTerminal";
 import { LogcatStudio } from "./components/LogcatStudio/LogcatStudio";
+import { PortForwardManager } from "./components/PortForwardManager/PortForwardManager";
+import { ScreenStudio } from "./components/ScreenStudio/ScreenStudio";
+import { UIInspector } from "./components/UIInspector/UIInspector";
+import { NotificationHub } from "./components/NotificationHub/NotificationHub";
 import { CommandPreviewModal } from "./components/CommandPreviewModal";
-import { Smartphone, Zap, Keyboard, Package, Folder, Monitor, Terminal, FileText } from "lucide-react";
+import { Smartphone, Zap, Keyboard, Package, Folder, Monitor, Terminal, FileText, ArrowLeftRight, Camera, Layers, Bell } from "lucide-react";
 import { Badge } from "./components/ui/Badge";
 import { CommandPreview } from "./types/terminal";
 
-type Tab = "devices" | "controls" | "keyboard" | "apk" | "files" | "logcat" | "terminal" | "mirror";
+type Tab =
+  | "devices"
+  | "controls"
+  | "keyboard"
+  | "screenstudio"
+  | "inspector"
+  | "notifications"
+  | "apk"
+  | "files"
+  | "logcat"
+  | "terminal"
+  | "forward"
+  | "mirror";
 
 export function AppContent() {
   const [activeTab, setActiveTab] = useState<Tab>("devices");
@@ -82,10 +98,14 @@ export function AppContent() {
     { id: "devices", label: "Device Manager", icon: <Smartphone className="h-4 w-4 shrink-0" /> },
     { id: "controls", label: "Quick Controls", icon: <Zap className="h-4 w-4 shrink-0" /> },
     { id: "keyboard", label: "Keyboard & Clipboard", icon: <Keyboard className="h-4 w-4 shrink-0" /> },
+    { id: "screenstudio", label: "Screen & Recording", icon: <Camera className="h-4 w-4 shrink-0 text-rose-400" /> },
+    { id: "inspector", label: "UI Inspector", icon: <Layers className="h-4 w-4 shrink-0 text-violet-400" /> },
+    { id: "notifications", label: "Notification Hub", icon: <Bell className="h-4 w-4 shrink-0 text-amber-400" /> },
     { id: "apk", label: "App Manager", icon: <Package className="h-4 w-4 shrink-0" /> },
     { id: "files", label: "File Manager", icon: <Folder className="h-4 w-4 shrink-0 text-amber-400" /> },
     { id: "logcat", label: "Logcat Studio", icon: <FileText className="h-4 w-4 shrink-0 text-cyan-400" /> },
     { id: "terminal", label: "ADB Shell Terminal", icon: <Terminal className="h-4 w-4 shrink-0 text-emerald-400" /> },
+    { id: "forward", label: "Port Manager", icon: <ArrowLeftRight className="h-4 w-4 shrink-0 text-cyan-400" /> },
     { id: "mirror", label: "Screen Mirroring", icon: <Monitor className="h-4 w-4 shrink-0" />, badge: "TODO" },
   ];
 
@@ -162,6 +182,12 @@ export function AppContent() {
             />
           )}
 
+          {activeTab === "screenstudio" && <ScreenStudio activeDevice={activeDevice} />}
+
+          {activeTab === "inspector" && <UIInspector activeDevice={activeDevice} />}
+
+          {activeTab === "notifications" && <NotificationHub activeDevice={activeDevice} />}
+
           {activeTab === "apk" && (
             <AppManager
               activeDevice={activeDevice}
@@ -188,6 +214,13 @@ export function AppContent() {
               activeDevice={activeDevice}
               pendingCommand={pendingTerminalCommand}
               onClearPendingCommand={() => setPendingTerminalCommand(null)}
+            />
+          )}
+
+          {activeTab === "forward" && (
+            <PortForwardManager
+              activeDevice={activeDevice}
+              onViewCommand={(cmd) => setPreviewCommand(cmd)}
             />
           )}
 

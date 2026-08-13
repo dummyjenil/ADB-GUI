@@ -1,1 +1,1 @@
-2,9 baaki , file manager pchhi thhi baaki
+2,9 baaki , logcat pchhi thhi baaki , port forwarding ho gayaa
