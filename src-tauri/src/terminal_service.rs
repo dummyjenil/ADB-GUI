@@ -4,8 +4,8 @@ use std::process::Stdio;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::process::{Child, ChildStdin, Command};
+use tokio::io::AsyncReadExt;
+use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -143,7 +143,7 @@ pub async fn start_interactive_shell(
         cmd.stdout(Stdio::from(slave_out));
         cmd.stderr(Stdio::from(slave_err));
 
-        let mut child = match cmd.spawn() {
+        let child = match cmd.spawn() {
             Ok(c) => c,
             Err(e) => {
                 unsafe { libc::close(master) };

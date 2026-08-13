@@ -1,0 +1,15 @@
+# Optional fast linker settings for Linux development
+# To enable 10x-20x faster linking, install `mold` or `lld`:
+#   sudo apt install mold clang  OR  sudo apt install lld clang
+#
+# Then uncomment the corresponding lines below:
+
+# Option A: mold linker (Fastest)
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+# Option B: lld linker
+# [target.x86_64-unknown-linux-gnu]
+# linker = "clang"
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
