@@ -26,9 +26,10 @@ import { CommandPreview } from "../../types/terminal";
 interface AppManagerProps {
   activeDevice: string | null;
   onViewCommand?: (preview: CommandPreview) => void;
+  onOpenLogcat?: (pkgName: string) => void;
 }
 
-export const AppManager: React.FC<AppManagerProps> = ({ activeDevice, onViewCommand }) => {
+export const AppManager: React.FC<AppManagerProps> = ({ activeDevice, onViewCommand, onOpenLogcat }) => {
   const [apps, setApps] = useState<PackageInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FilterOption[]>([]);
@@ -375,6 +376,7 @@ export const AppManager: React.FC<AppManagerProps> = ({ activeDevice, onViewComm
         onClearData={handleClearData}
         onExtractApk={handleExtractApk}
         onBackupData={handleBackupData}
+        onOpenLogcat={onOpenLogcat}
         loading={loading}
       />
 
@@ -387,6 +389,7 @@ export const AppManager: React.FC<AppManagerProps> = ({ activeDevice, onViewComm
           onRefreshList={fetchPackages}
           addLog={addLog}
           onViewCommand={onViewCommand}
+          onOpenLogcat={onOpenLogcat}
         />
       )}
 

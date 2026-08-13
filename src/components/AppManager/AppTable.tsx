@@ -1,14 +1,12 @@
 import React, { useState } from "react";
 import { PackageInfo } from "../../types/app_manager";
 import { Badge } from "../ui/Badge";
-import { Button } from "../ui/Button";
 import {
   Play,
   Square,
   Trash2,
   Download,
   Info,
-  ChevronDown,
   Layers,
   ShieldAlert,
   Archive,
@@ -17,6 +15,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  FileText,
 } from "lucide-react";
 
 export type SortKey = "name" | "package_name" | "app_type" | "status" | "uid";
@@ -35,6 +34,7 @@ interface AppTableProps {
   onClearData: (pkgName: string) => void;
   onExtractApk: (pkgName: string) => void;
   onBackupData: (pkgName: string) => void;
+  onOpenLogcat?: (pkgName: string) => void;
   loading: boolean;
 }
 
@@ -51,6 +51,7 @@ export const AppTable: React.FC<AppTableProps> = ({
   onClearData,
   onExtractApk,
   onBackupData,
+  onOpenLogcat,
   loading,
 }) => {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -212,7 +213,6 @@ export const AppTable: React.FC<AppTableProps> = ({
         <tbody className="divide-y divide-[var(--neo-border)] text-xs font-bold">
           {sortedApps.map((app) => {
             const isSelected = selectedPackages.includes(app.package_name);
-            const isMenuOpen = activeMenu === app.package_name;
 
             return (
               <tr
@@ -252,124 +252,91 @@ export const AppTable: React.FC<AppTableProps> = ({
                 <td className="p-3 text-center font-mono text-[11px] text-[var(--neo-text-muted)]">
                   {app.uid || "N/A"}
                 </td>
-                <td className="p-3 text-right relative">
-                  <div className="flex items-center justify-end gap-1.5">
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      icon={<Play className="h-3 w-3" />}
+                <td className="p-3 text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <button
                       onClick={() => onLaunch(app.package_name)}
+                      className="p-1.5 rounded text-emerald-500 hover:bg-emerald-500/10 hover:border-emerald-500/50 border border-transparent transition-all"
                       title="Launch App"
                     >
-                      Launch
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      icon={<Info className="h-3 w-3" />}
-                      onClick={() => onInspect(app)}
-                      title="Inspect Package Details"
-                    >
-                      Inspect
-                    </Button>
-
-                    {/* Actions Dropdown Toggle */}
-                    <button
-                      onClick={() => setActiveMenu(isMenuOpen ? null : app.package_name)}
-                      className="neo-btn p-1.5 bg-black/10 hover:bg-black/20 text-[var(--neo-text)] rounded border border-black/20"
-                    >
-                      <ChevronDown className="h-3.5 w-3.5" />
+                      <Play className="h-4 w-4" />
                     </button>
 
-                    {/* Dropdown Floating Menu */}
-                    {isMenuOpen && (
-                      <div className="absolute right-3 top-11 z-50 w-52 neo-box bg-[var(--neo-card-bg)] p-1.5 shadow-[6px_6px_0px_0px_var(--neo-shadow)] space-y-1 text-left border-2 border-[var(--neo-border)]">
-                        <button
-                          onClick={() => {
-                            setActiveMenu(null);
-                            onForceStop(app.package_name);
-                          }}
-                          className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-bold text-[var(--neo-text)] hover:bg-black/10 rounded"
-                        >
-                          <Square className="h-3.5 w-3.5 text-amber-500" /> Force Stop
-                        </button>
+                    <button
+                      onClick={() => onInspect(app)}
+                      className="p-1.5 rounded text-sky-500 hover:bg-sky-500/10 hover:border-sky-500/50 border border-transparent transition-all"
+                      title="Inspect Details"
+                    >
+                      <Info className="h-4 w-4" />
+                    </button>
 
-                        <button
-                          onClick={() => {
-                            setActiveMenu(null);
-                            onExtractApk(app.package_name);
-                          }}
-                          className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-bold text-[var(--neo-text)] hover:bg-black/10 rounded"
-                        >
-                          <Download className="h-3.5 w-3.5 text-emerald-500" /> Extract APK
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            setActiveMenu(null);
-                            onClearData(app.package_name);
-                          }}
-                          className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-bold text-[var(--neo-text)] hover:bg-black/10 rounded"
-                        >
-                          <RefreshCcw className="h-3.5 w-3.5 text-sky-500" /> Clear Data & Cache
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            setActiveMenu(null);
-                            onBackupData(app.package_name);
-                          }}
-                          className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-bold text-[var(--neo-text)] hover:bg-black/10 rounded"
-                        >
-                          <Archive className="h-3.5 w-3.5 text-purple-500" /> Backup Data
-                        </button>
-
-                        {app.status === "Disabled" ? (
-                          <button
-                            onClick={() => {
-                              setActiveMenu(null);
-                              onEnable(app.package_name);
-                            }}
-                            className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-bold text-emerald-600 hover:bg-black/10 rounded"
-                          >
-                            <Play className="h-3.5 w-3.5" /> Enable App
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              setActiveMenu(null);
-                              onDisable(app.package_name);
-                            }}
-                            className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-bold text-amber-600 hover:bg-black/10 rounded"
-                          >
-                            <ShieldAlert className="h-3.5 w-3.5" /> Disable App
-                          </button>
-                        )}
-
-                        <div className="border-t border-[var(--neo-border)] my-1" />
-
-                        <button
-                          onClick={() => {
-                            setActiveMenu(null);
-                            onUninstall(app.package_name, true);
-                          }}
-                          className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-bold text-rose-500 hover:bg-rose-500/10 rounded"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" /> Uninstall for User
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            setActiveMenu(null);
-                            onUninstall(app.package_name, false);
-                          }}
-                          className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-500/20 rounded"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" /> Uninstall System-Wide
-                        </button>
-                      </div>
+                    {onOpenLogcat && (
+                      <button
+                        onClick={() => onOpenLogcat(app.package_name)}
+                        className="p-1.5 rounded text-cyan-400 hover:bg-cyan-500/10 hover:border-cyan-500/50 border border-transparent transition-all"
+                        title="Open Logcat Studio"
+                      >
+                        <FileText className="h-4 w-4" />
+                      </button>
                     )}
+
+                    <button
+                      onClick={() => onForceStop(app.package_name)}
+                      className="p-1.5 rounded text-amber-500 hover:bg-amber-500/10 hover:border-amber-500/50 border border-transparent transition-all"
+                      title="Force Stop"
+                    >
+                      <Square className="h-4 w-4" />
+                    </button>
+
+                    <button
+                      onClick={() => onExtractApk(app.package_name)}
+                      className="p-1.5 rounded text-purple-500 hover:bg-purple-500/10 hover:border-purple-500/50 border border-transparent transition-all"
+                      title="Extract APK"
+                    >
+                      <Download className="h-4 w-4" />
+                    </button>
+
+                    <button
+                      onClick={() => onClearData(app.package_name)}
+                      className="p-1.5 rounded text-indigo-500 hover:bg-indigo-500/10 hover:border-indigo-500/50 border border-transparent transition-all"
+                      title="Clear Data & Cache"
+                    >
+                      <RefreshCcw className="h-4 w-4" />
+                    </button>
+
+                    <button
+                      onClick={() => onBackupData(app.package_name)}
+                      className="p-1.5 rounded text-teal-500 hover:bg-teal-500/10 hover:border-teal-500/50 border border-transparent transition-all"
+                      title="Backup Data"
+                    >
+                      <Archive className="h-4 w-4" />
+                    </button>
+
+                    {app.status === "Disabled" ? (
+                      <button
+                        onClick={() => onEnable(app.package_name)}
+                        className="p-1.5 rounded text-emerald-600 hover:bg-emerald-500/10 hover:border-emerald-500/50 border border-transparent transition-all"
+                        title="Enable App"
+                      >
+                        <Play className="h-4 w-4" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => onDisable(app.package_name)}
+                        className="p-1.5 rounded text-amber-600 hover:bg-amber-500/10 hover:border-amber-500/50 border border-transparent transition-all"
+                        title="Disable App"
+                      >
+                        <ShieldAlert className="h-4 w-4" />
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => onUninstall(app.package_name, true)}
+                      className="p-1.5 rounded text-rose-500 hover:bg-rose-500/10 hover:border-rose-500/50 border border-transparent transition-all"
+                      title="Uninstall (User)"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                 </td>
               </tr>

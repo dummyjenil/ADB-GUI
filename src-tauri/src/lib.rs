@@ -2,11 +2,15 @@ pub mod adb_service;
 pub mod device_dashboard;
 pub mod app_manager;
 pub mod terminal_service;
+pub mod file_manager;
+pub mod logcat_service;
 
 use adb_service::*;
 use device_dashboard::*;
 use app_manager::*;
 use terminal_service::*;
+use file_manager::*;
+use logcat_service::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -43,6 +47,7 @@ pub fn run() {
             backup_app_data,
             execute_pm_command,
             pick_multiple_apk_files,
+            pick_multiple_files,
             pick_save_directory,
             get_detailed_permissions,
             grant_app_permission,
@@ -55,7 +60,21 @@ pub fn run() {
             write_terminal_input,
             resize_terminal_session,
             close_interactive_shell,
-            get_shell_autocompletions
+            get_shell_autocompletions,
+            list_device_files,
+            create_device_directory,
+            delete_device_file_or_dir,
+            rename_or_move_device_file,
+            copy_device_file,
+            change_device_file_permissions,
+            pull_device_file,
+            push_device_file,
+            get_device_storage_info,
+            start_logcat_stream,
+            stop_logcat_stream,
+            clear_logcat_buffer,
+            get_device_processes,
+            export_logcat_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -18,6 +18,8 @@ interface NavbarProps {
   setActiveDevice: (serial: string) => void;
   onRefresh: () => void;
   loading: boolean;
+  autoRefresh?: boolean;
+  onToggleAutoRefresh?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -26,6 +28,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveDevice,
   onRefresh,
   loading,
+  autoRefresh = true,
+  onToggleAutoRefresh,
 }) => {
   const { currentTheme, setThemeId, availableThemes } = useTheme();
 
@@ -100,6 +104,21 @@ export const Navbar: React.FC<NavbarProps> = ({
           variant="accent"
           icon={<Palette className="h-4 w-4" />}
         />
+
+        {/* Auto-Refresh Poll Toggle Button */}
+        {onToggleAutoRefresh && (
+          <Button
+            onClick={onToggleAutoRefresh}
+            variant={autoRefresh ? "secondary" : "ghost"}
+            size="sm"
+            title={autoRefresh ? "Auto-detecting devices every 5s (Click to pause)" : "Auto-detect devices paused (Click to resume)"}
+          >
+            <span className="flex items-center gap-1.5 font-mono text-xs">
+              <span className={`h-2 w-2 rounded-full ${autoRefresh ? "bg-emerald-400 animate-pulse" : "bg-zinc-500"}`} />
+              {autoRefresh ? "Auto 5s" : "Auto Off"}
+            </span>
+          </Button>
+        )}
 
         {/* Refresh Device Button */}
         <Button

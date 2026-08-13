@@ -6,20 +6,24 @@ import { DeviceManager } from "./components/DeviceManager";
 import { QuickControls } from "./components/QuickControls";
 import { KeyboardClipboard } from "./components/KeyboardClipboard";
 import { AppManager } from "./components/AppManager/AppManager";
+import { FileManager } from "./components/FileManager/FileManager";
 import { ScreenMirroringTodo } from "./components/ScreenMirroringTodo";
 import { ShellTerminal } from "./components/Terminal/ShellTerminal";
+import { LogcatStudio } from "./components/LogcatStudio/LogcatStudio";
 import { CommandPreviewModal } from "./components/CommandPreviewModal";
-import { Smartphone, Zap, Keyboard, Package, Monitor, Terminal } from "lucide-react";
+import { Smartphone, Zap, Keyboard, Package, Folder, Monitor, Terminal, FileText } from "lucide-react";
 import { Badge } from "./components/ui/Badge";
 import { CommandPreview } from "./types/terminal";
 
-type Tab = "devices" | "controls" | "keyboard" | "apk" | "terminal" | "mirror";
+type Tab = "devices" | "controls" | "keyboard" | "apk" | "files" | "logcat" | "terminal" | "mirror";
 
 export function AppContent() {
   const [activeTab, setActiveTab] = useState<Tab>("devices");
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [activeDevice, setActiveDevice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [autoRefreshDevices, setAutoRefreshDevices] = useState<boolean>(true);
+  const [selectedLogcatPackage, setSelectedLogcatPackage] = useState<string | null>(null);
 
   // Command preview modal state
   const [previewCommand, setPreviewCommand] = useState<CommandPreview | null>(null);
@@ -68,15 +72,19 @@ export function AppContent() {
 
   useEffect(() => {
     fetchDevices(false);
+    if (!autoRefreshDevices) return;
+
     const interval = setInterval(() => fetchDevices(true), 5000);
     return () => clearInterval(interval);
-  }, [fetchDevices]);
+  }, [fetchDevices, autoRefreshDevices]);
 
   const navItems: { id: Tab; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: "devices", label: "Device Manager", icon: <Smartphone className="h-4 w-4 shrink-0" /> },
     { id: "controls", label: "Quick Controls", icon: <Zap className="h-4 w-4 shrink-0" /> },
     { id: "keyboard", label: "Keyboard & Clipboard", icon: <Keyboard className="h-4 w-4 shrink-0" /> },
     { id: "apk", label: "App Manager", icon: <Package className="h-4 w-4 shrink-0" /> },
+    { id: "files", label: "File Manager", icon: <Folder className="h-4 w-4 shrink-0 text-amber-400" /> },
+    { id: "logcat", label: "Logcat Studio", icon: <FileText className="h-4 w-4 shrink-0 text-cyan-400" /> },
     { id: "terminal", label: "ADB Shell Terminal", icon: <Terminal className="h-4 w-4 shrink-0 text-emerald-400" /> },
     { id: "mirror", label: "Screen Mirroring", icon: <Monitor className="h-4 w-4 shrink-0" />, badge: "TODO" },
   ];
@@ -93,8 +101,10 @@ export function AppContent() {
         devices={devices}
         activeDevice={activeDevice}
         setActiveDevice={setActiveDevice}
-        onRefresh={fetchDevices}
+        onRefresh={() => fetchDevices(false)}
         loading={loading}
+        autoRefresh={autoRefreshDevices}
+        onToggleAutoRefresh={() => setAutoRefreshDevices((prev) => !prev)}
       />
 
       {/* Main Body */}
@@ -156,6 +166,19 @@ export function AppContent() {
             <AppManager
               activeDevice={activeDevice}
               onViewCommand={(cmd) => setPreviewCommand(cmd)}
+              onOpenLogcat={(pkgName) => {
+                setSelectedLogcatPackage(pkgName);
+                setActiveTab("logcat");
+              }}
+            />
+          )}
+
+          {activeTab === "files" && <FileManager activeDevice={activeDevice} />}
+
+          {activeTab === "logcat" && (
+            <LogcatStudio
+              activeDevice={activeDevice}
+              initialPackage={selectedLogcatPackage}
             />
           )}
 

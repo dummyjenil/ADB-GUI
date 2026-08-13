@@ -421,3 +421,19 @@ pub async fn pick_apk_file() -> std::result::Result<Option<String>, String> {
     Ok(file.map(|f| f.path().to_string_lossy().to_string()))
 }
 
+// Native OS File Dialog to pick multiple files of any type
+#[tauri::command]
+pub async fn pick_multiple_files() -> std::result::Result<Option<Vec<String>>, String> {
+    let files = rfd::AsyncFileDialog::new()
+        .set_title("Select Files to Upload")
+        .pick_files()
+        .await;
+
+    Ok(files.map(|list| {
+        list.into_iter()
+            .map(|f| f.path().to_string_lossy().to_string())
+            .collect()
+    }))
+}
+
+

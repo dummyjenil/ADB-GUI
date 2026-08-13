@@ -33,6 +33,7 @@ interface PackageDetailModalProps {
   onRefreshList: () => void;
   addLog: (msg: string) => void;
   onViewCommand?: (preview: CommandPreview) => void;
+  onOpenLogcat?: (pkgName: string) => void;
 }
 
 type Tab = "overview" | "permissions" | "intents" | "components" | "raw";
@@ -44,6 +45,7 @@ export const PackageDetailModal: React.FC<PackageDetailModalProps> = ({
   onRefreshList,
   addLog,
   onViewCommand,
+  onOpenLogcat,
 }) => {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [details, setDetails] = useState<PackageDetails | null>(null);
@@ -218,6 +220,21 @@ export const PackageDetailModal: React.FC<PackageDetailModalProps> = ({
           <Button size="sm" variant="secondary" icon={<Archive className="h-3.5 w-3.5" />} onClick={handleBackup} disabled={actionLoading}>
             Backup Data
           </Button>
+
+          {onOpenLogcat && (
+            <Button
+              size="sm"
+              variant="accent"
+              icon={<FileText className="h-3.5 w-3.5 text-cyan-400" />}
+              onClick={() => {
+                onClose();
+                onOpenLogcat(packageInfo.package_name);
+              }}
+              title="Open Logcat Studio filtered for this package"
+            >
+              Logcat Studio
+            </Button>
+          )}
 
           {onViewCommand && (
             <Button

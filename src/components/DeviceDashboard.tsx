@@ -23,6 +23,8 @@ import {
   Terminal,
   Activity,
   Layers,
+  Play,
+  Pause,
 } from "lucide-react";
 
 export interface DeviceDetails {
@@ -80,6 +82,9 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({ serial }) => {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [copied, setCopied] = useState<boolean>(false);
 
+  const [isMonitoring, setIsMonitoring] = useState<boolean>(false);
+  const [refreshIntervalMs, setRefreshIntervalMs] = useState<number>(3000);
+
   const fetchFullDetails = useCallback(async (targetSerial: string) => {
     if (!targetSerial) return;
     try {
@@ -132,18 +137,19 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({ serial }) => {
   useEffect(() => {
     if (!serial) return;
     setLoading(true);
-    setGraphData([]);
 
     Promise.all([fetchFullDetails(serial), fetchHealthTelemetry(serial)]).finally(() => {
       setLoading(false);
     });
 
+    if (!isMonitoring) return;
+
     const interval = setInterval(() => {
       fetchHealthTelemetry(serial);
-    }, 3000);
+    }, refreshIntervalMs);
 
     return () => clearInterval(interval);
-  }, [serial, fetchFullDetails, fetchHealthTelemetry]);
+  }, [serial, isMonitoring, refreshIntervalMs, fetchFullDetails, fetchHealthTelemetry]);
 
   const handleCopySpecs = () => {
     if (!details) return;
@@ -246,6 +252,59 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({ serial }) => {
       >
         {health ? (
           <div className="space-y-5">
+            {/* Live Telemetry Monitoring Control Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3 neo-box-sm bg-[var(--neo-card-bg)] border border-[var(--neo-border)]">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  size="sm"
+                  variant={isMonitoring ? "accent" : "ghost"}
+                  onClick={() => setIsMonitoring(!isMonitoring)}
+                  icon={isMonitoring ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                >
+                  {isMonitoring ? "Live Monitoring: ACTIVE" : "Live Monitoring: PAUSED"}
+                </Button>
+
+                <div className="flex items-center gap-1.5 border-l border-[var(--neo-border)] pl-3">
+                  <Clock className="h-3.5 w-3.5 text-[var(--neo-text-muted)] shrink-0" />
+                  <span className="text-[11px] font-mono text-[var(--neo-text-muted)] uppercase font-semibold">
+                    Interval:
+                  </span>
+                  {[3000, 5000, 10000].map((int) => (
+                    <button
+                      key={int}
+                      type="button"
+                      onClick={() => setRefreshIntervalMs(int)}
+                      className={`px-2 py-0.5 text-xs font-mono rounded transition-colors ${
+                        refreshIntervalMs === int
+                          ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)] font-bold neo-box-sm"
+                          : "text-[var(--neo-text-muted)] hover:bg-black/20"
+                      }`}
+                    >
+                      {int / 1000}s
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {!isMonitoring && (
+                  <span className="text-[11px] font-mono text-amber-400 font-semibold flex items-center gap-1">
+                    <Info className="h-3.5 w-3.5 shrink-0" />
+                    ADB Continuous Polling Idle
+                  </span>
+                )}
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={handleManualRefresh}
+                  loading={loading}
+                  icon={<RefreshCw className="h-3.5 w-3.5" />}
+                >
+                  Refresh Telemetry
+                </Button>
+              </div>
+            </div>
+
             {/* Quick Metrics Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {/* Battery Card */}

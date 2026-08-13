@@ -1,22 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import { UnlistenFn } from "@tauri-apps/api/event";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import {
-  Terminal as TerminalIcon,
-  Plus,
-  X,
-  Trash2,
-  Copy,
-  Download,
-  Smartphone,
-  Code,
-  RefreshCw,
-  Square,
-  Check,
-} from "lucide-react";
 import { DeviceInfo } from "../Navbar";
+import { TerminalHeader, OrganicTab } from "./TerminalHeader";
+import { TerminalView } from "./TerminalView";
 
 interface ShellTerminalProps {
   devices: DeviceInfo[];
@@ -24,37 +13,6 @@ interface ShellTerminalProps {
   pendingCommand?: string | null;
   onClearPendingCommand?: () => void;
 }
-
-interface OrganicTab {
-  id: string;
-  title: string;
-  targetSerial: string | null;
-  sessionId: string;
-}
-
-const neoTerminalTheme = {
-  background: "#090d16",
-  foreground: "#f8fafc",
-  cursor: "#fef08a",
-  cursorAccent: "#000000",
-  selectionBackground: "rgba(254, 240, 138, 0.35)",
-  black: "#1e293b",
-  red: "#f87171",
-  green: "#4ade80",
-  yellow: "#facc15",
-  blue: "#60a5fa",
-  magenta: "#c084fc",
-  cyan: "#38bdf8",
-  white: "#f8fafc",
-  brightBlack: "#475569",
-  brightRed: "#fca5a5",
-  brightGreen: "#86efac",
-  brightYellow: "#fde047",
-  brightBlue: "#93c5fd",
-  brightMagenta: "#e9d5ff",
-  brightCyan: "#7dd3fc",
-  brightWhite: "#ffffff",
-};
 
 export const ShellTerminal: React.FC<ShellTerminalProps> = ({
   devices,
@@ -74,130 +32,76 @@ export const ShellTerminal: React.FC<ShellTerminalProps> = ({
   const [activeTabId, setActiveTabId] = useState<string>("tab-1");
   const [copiedOutput, setCopiedOutput] = useState(false);
   const [connectedSessions, setConnectedSessions] = useState<Record<string, boolean>>({});
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
-  const containerRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const xtermInstances = useRef<
     Record<
       string,
       {
         term: XTerm;
         fitAddon: FitAddon;
-        unlisten?: UnlistenFn;
+        unlistenOutput?: UnlistenFn;
+        unlistenClosed?: UnlistenFn;
       }
     >
   >({});
 
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
-  const targetDeviceSerial = activeTab?.targetSerial || activeDevice;
+  const targetDeviceSerial = activeTab ? (activeTab.targetSerial || activeDevice) : activeDevice;
 
-  // Initialize and attach xterm instance for a specific tab
-  const initTabTerminal = useCallback(
-    async (tab: OrganicTab) => {
-      const container = containerRefs.current[tab.id];
-      if (!container || xtermInstances.current[tab.id]) return;
-
-      const term = new XTerm({
-        cursorBlink: true,
-        cursorStyle: "block",
-        fontSize: 13,
-        fontFamily: 'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
-        theme: neoTerminalTheme,
-        convertEol: true,
-        scrollback: 10000,
-      });
-
-      const fitAddon = new FitAddon();
-      term.loadAddon(fitAddon);
-      term.open(container);
-      fitAddon.fit();
-
-      // Forward keystrokes directly to Rust master PTY
-      term.onData((data) => {
-        invoke("write_terminal_input", {
-          sessionId: tab.sessionId,
-          input: data,
-        }).catch(console.error);
-      });
-
-      // Forward terminal resize to Rust PTY ioctl
-      term.onResize(({ cols, rows }) => {
-        invoke("resize_terminal_session", {
-          sessionId: tab.sessionId,
-          cols,
-          rows,
-        }).catch(console.error);
-      });
-
-      // Start native ADB shell PTY session
-      try {
-        await invoke("start_interactive_shell", {
-          serial: tab.targetSerial || activeDevice,
-          sessionId: tab.sessionId,
-          cols: term.cols,
-          rows: term.rows,
-        });
-
-        setConnectedSessions((prev) => ({ ...prev, [tab.id]: true }));
-
-        // Listen for PTY output stream
-        const eventName = `terminal-output-${tab.sessionId}`;
-        const unlisten = await listen<string>(eventName, (event) => {
-          if (event.payload) {
-            term.write(event.payload);
-          }
-        });
-
-        xtermInstances.current[tab.id] = { term, fitAddon, unlisten };
-      } catch (err) {
-        console.error("Failed to start terminal session:", err);
-        term.writeln(`\r\n\x1b[31m[Error starting ADB shell: ${String(err)}]\x1b[0m\r\n`);
-        xtermInstances.current[tab.id] = { term, fitAddon };
+  const handleRegisterInstance = useCallback(
+    (
+      tabId: string,
+      inst: {
+        term: XTerm;
+        fitAddon: FitAddon;
+        unlistenOutput?: UnlistenFn;
+        unlistenClosed?: UnlistenFn;
       }
+    ) => {
+      xtermInstances.current[tabId] = inst;
     },
-    [activeDevice]
+    []
   );
 
-  // Initialize active tab terminal when container is mounted
-  useEffect(() => {
-    if (activeTab) {
-      initTabTerminal(activeTab);
-    }
-  }, [activeTab, initTabTerminal]);
+  const handleUnregisterInstance = useCallback((tabId: string) => {
+    delete xtermInstances.current[tabId];
+  }, []);
 
-  // Fit current active terminal on tab switch or window resize
-  useEffect(() => {
+  const handleConnectionChange = useCallback((tabId: string, connected: boolean) => {
+    setConnectedSessions((prev) => ({ ...prev, [tabId]: connected }));
+  }, []);
+
+  // Refit terminal helper
+  const refitActiveTerminal = useCallback(() => {
+    if (!activeTabId) return;
     const activeInst = xtermInstances.current[activeTabId];
-    if (activeInst) {
-      setTimeout(() => {
-        activeInst.fitAddon.fit();
-        activeInst.term.focus();
-        invoke("resize_terminal_session", {
-          sessionId: activeTab.sessionId,
-          cols: activeInst.term.cols,
-          rows: activeInst.term.rows,
-        }).catch(console.error);
-      }, 50);
+    if (activeInst && activeTab) {
+      activeInst.fitAddon.fit();
+      activeInst.term.focus();
+      invoke("resize_terminal_session", {
+        sessionId: activeTab.sessionId,
+        cols: activeInst.term.cols,
+        rows: activeInst.term.rows,
+      }).catch(console.error);
     }
   }, [activeTabId, activeTab]);
 
-  // Global window resize listener
+  // Handle window resize & fullscreen toggle
   useEffect(() => {
     const handleResize = () => {
-      const activeInst = xtermInstances.current[activeTabId];
-      if (activeInst) {
-        activeInst.fitAddon.fit();
-        invoke("resize_terminal_session", {
-          sessionId: activeTab.sessionId,
-          cols: activeInst.term.cols,
-          rows: activeInst.term.rows,
-        }).catch(console.error);
-      }
+      refitActiveTerminal();
     };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [activeTabId, activeTab]);
+  }, [refitActiveTerminal]);
 
-  // Handle external pending command from "Run in Terminal"
+  useEffect(() => {
+    const timer = setTimeout(refitActiveTerminal, 60);
+    return () => clearTimeout(timer);
+  }, [activeTabId, isFullScreen, refitActiveTerminal]);
+
+  // External pending command handler
   useEffect(() => {
     if (pendingCommand && activeTab) {
       invoke("write_terminal_input", {
@@ -216,12 +120,13 @@ export const ShellTerminal: React.FC<ShellTerminalProps> = ({
     }
   }, [pendingCommand, activeTab, activeTabId, onClearPendingCommand]);
 
-  // Add new tab
+  // Tab operations
   const handleAddTab = () => {
+    const nextNum = tabs.length + 1;
     const newId = `tab-${Date.now()}`;
     const newTab: OrganicTab = {
       id: newId,
-      title: `Terminal ${tabs.length + 1}`,
+      title: `Terminal ${nextNum}`,
       targetSerial: null,
       sessionId: `session-${newId}`,
     };
@@ -229,20 +134,13 @@ export const ShellTerminal: React.FC<ShellTerminalProps> = ({
     setActiveTabId(newId);
   };
 
-  // Close tab
-  const handleCloseTab = (id: string, e: React.MouseEvent) => {
+  const handleCloseTab = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (tabs.length === 1) return;
 
     const targetTab = tabs.find((t) => t.id === id);
     if (targetTab) {
-      const inst = xtermInstances.current[id];
-      if (inst) {
-        if (inst.unlisten) inst.unlisten();
-        inst.term.dispose();
-        delete xtermInstances.current[id];
-      }
-      invoke("close_interactive_shell", { sessionId: targetTab.sessionId }).catch(console.error);
+      await invoke("close_interactive_shell", { sessionId: targetTab.sessionId }).catch(console.error);
     }
 
     const nextTabs = tabs.filter((t) => t.id !== id);
@@ -252,30 +150,16 @@ export const ShellTerminal: React.FC<ShellTerminalProps> = ({
     }
   };
 
-  // Target device change per tab
-  const handleSetTabTargetSerial = async (serial: string | null) => {
+  const handleSetTabDevice = async (serial: string | null) => {
     if (!activeTab) return;
 
-    const inst = xtermInstances.current[activeTabId];
-    if (inst) {
-      if (inst.unlisten) inst.unlisten();
-      inst.term.dispose();
-      delete xtermInstances.current[activeTabId];
-    }
     await invoke("close_interactive_shell", { sessionId: activeTab.sessionId }).catch(console.error);
 
     setTabs((prev) =>
       prev.map((t) => (t.id === activeTabId ? { ...t, targetSerial: serial } : t))
     );
-
-    // Re-initialize terminal with new serial target
-    setTimeout(() => {
-      const updatedTab = { ...activeTab, targetSerial: serial };
-      initTabTerminal(updatedTab);
-    }, 100);
   };
 
-  // Reconnect/Restart interactive shell session
   const handleRestartSession = async () => {
     if (!activeTab) return;
 
@@ -307,7 +191,6 @@ export const ShellTerminal: React.FC<ShellTerminalProps> = ({
     }
   };
 
-  // Send Ctrl+C (SIGINT) to organic shell
   const handleSendCtrlC = () => {
     if (!activeTab) return;
     invoke("write_terminal_input", {
@@ -316,7 +199,6 @@ export const ShellTerminal: React.FC<ShellTerminalProps> = ({
     }).catch(console.error);
   };
 
-  // Clear current tab terminal
   const handleClearOutput = () => {
     const inst = xtermInstances.current[activeTabId];
     if (inst) {
@@ -324,13 +206,11 @@ export const ShellTerminal: React.FC<ShellTerminalProps> = ({
     }
   };
 
-  // Copy active tab terminal content or selection
   const handleCopyTabOutput = () => {
     const inst = xtermInstances.current[activeTabId];
     if (inst) {
       let text = inst.term.getSelection();
       if (!text) {
-        // Select all text, copy, and restore
         inst.term.selectAll();
         text = inst.term.getSelection();
         inst.term.clearSelection();
@@ -343,7 +223,6 @@ export const ShellTerminal: React.FC<ShellTerminalProps> = ({
     }
   };
 
-  // Export terminal scrollback buffer to text file
   const handleExportSession = () => {
     const inst = xtermInstances.current[activeTabId];
     if (!inst) return;
@@ -364,140 +243,48 @@ export const ShellTerminal: React.FC<ShellTerminalProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] min-h-[550px] neo-box bg-[var(--neo-card-bg)] text-[var(--neo-text)] shadow-[8px_8px_0px_0px_var(--neo-shadow)] overflow-hidden">
-      {/* Header Controls */}
-      <div className="p-3 border-b-2 border-[var(--neo-border)] bg-[var(--neo-bg)] flex flex-wrap items-center justify-between gap-3">
-        {/* Title & Device Selector */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 font-black text-sm uppercase tracking-wider text-[var(--neo-primary-text)] bg-[var(--neo-primary)] px-2.5 py-1 border border-[var(--neo-border)]">
-            <TerminalIcon className="h-4 w-4" />
-            <span>ADB Shell Terminal</span>
-          </div>
+    <div
+      className={`flex flex-col neo-box bg-[var(--neo-card-bg)] text-[var(--neo-text)] shadow-[8px_8px_0px_0px_var(--neo-shadow)] overflow-hidden transition-all duration-200 ${
+        isFullScreen
+          ? "fixed inset-2 z-50 h-[calc(100vh-16px)]"
+          : "h-[calc(100vh-140px)] min-h-[550px]"
+      }`}
+    >
+      {/* Refactored Terminal Header Component */}
+      <TerminalHeader
+        tabs={tabs}
+        activeTabId={activeTabId}
+        activeTab={activeTab}
+        devices={devices}
+        activeDevice={activeDevice}
+        isConnected={!!connectedSessions[activeTabId]}
+        copiedOutput={copiedOutput}
+        isFullScreen={isFullScreen}
+        onSelectTab={setActiveTabId}
+        onAddTab={handleAddTab}
+        onCloseTab={handleCloseTab}
+        onSetTabDevice={handleSetTabDevice}
+        onSendCtrlC={handleSendCtrlC}
+        onRestartSession={handleRestartSession}
+        onCopyOutput={handleCopyTabOutput}
+        onExportSession={handleExportSession}
+        onClearOutput={handleClearOutput}
+        onToggleFullScreen={() => setIsFullScreen((prev) => !prev)}
+      />
 
-          {/* Per-tab Device Selector */}
-          <div className="flex items-center gap-1.5 text-xs font-bold bg-[var(--neo-card-bg)] px-2.5 py-1 border border-[var(--neo-border)]">
-            <Smartphone className="h-3.5 w-3.5 text-blue-500" />
-            <span className="text-[var(--neo-text-muted)]">Device:</span>
-            <select
-              value={activeTab.targetSerial || ""}
-              onChange={(e) => handleSetTabTargetSerial(e.target.value || null)}
-              className="bg-transparent font-extrabold focus:outline-none cursor-pointer"
-            >
-              <option value="">Default Active ({activeDevice || "None"})</option>
-              {devices.map((d) => (
-                <option key={String(d.serial)} value={String(d.serial)}>
-                  {d.model} ({d.serial})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Session Status Badge */}
-          <div className="flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 border border-[var(--neo-border)] bg-emerald-400/20 text-emerald-900">
-            <div
-              className={`h-2 w-2 rounded-full ${
-                connectedSessions[activeTabId] ? "bg-emerald-500 animate-pulse" : "bg-amber-400"
-              }`}
-            />
-            <span>{connectedSessions[activeTabId] ? "PTY Shell Connected" : "Connecting..."}</span>
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleSendCtrlC}
-            className="neo-btn px-2.5 py-1 text-xs font-bold bg-rose-500 text-white flex items-center gap-1"
-            title="Send Ctrl+C (SIGINT)"
-          >
-            <Square className="h-3.5 w-3.5 fill-current" />
-            <span>Ctrl+C</span>
-          </button>
-
-          <button
-            onClick={handleRestartSession}
-            className="neo-btn px-2.5 py-1 text-xs font-bold bg-[var(--neo-card-bg)] flex items-center gap-1"
-            title="Restart ADB shell process"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Reconnect</span>
-          </button>
-
-          <button
-            onClick={handleCopyTabOutput}
-            className="neo-btn px-2.5 py-1 text-xs font-bold bg-[var(--neo-card-bg)] flex items-center gap-1"
-            title="Copy terminal buffer or selection"
-          >
-            {copiedOutput ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-            <span className="hidden sm:inline">{copiedOutput ? "Copied!" : "Copy"}</span>
-          </button>
-
-          <button
-            onClick={handleExportSession}
-            className="neo-btn px-2.5 py-1 text-xs font-bold bg-[var(--neo-card-bg)] flex items-center gap-1"
-            title="Save session log file"
-          >
-            <Download className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Export</span>
-          </button>
-
-          <button
-            onClick={handleClearOutput}
-            className="neo-btn px-2.5 py-1 text-xs font-bold bg-amber-400 text-black flex items-center gap-1"
-            title="Clear active terminal view"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Clear</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Tab Navigation Header */}
-      <div className="flex items-center bg-slate-900 border-b-2 border-[var(--neo-border)] px-2 overflow-x-auto custom-scrollbar shrink-0">
-        {tabs.map((tab) => {
-          const isActive = tab.id === activeTabId;
-          return (
-            <div
-              key={tab.id}
-              onClick={() => setActiveTabId(tab.id)}
-              className={`flex items-center gap-2 px-3 py-2 text-xs font-bold cursor-pointer border-r border-slate-700 transition-colors select-none ${
-                isActive
-                  ? "bg-[#090d16] text-[var(--neo-text)] border-t-2 border-t-[var(--neo-primary)] font-black"
-                  : "bg-slate-900 text-slate-400 hover:bg-slate-800"
-              }`}
-            >
-              <Code className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
-              <span>{tab.title}</span>
-              {tabs.length > 1 && (
-                <button
-                  onClick={(e) => handleCloseTab(tab.id, e)}
-                  className="hover:bg-red-500/20 hover:text-red-400 rounded p-0.5 ml-1 transition-colors"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
-            </div>
-          );
-        })}
-
-        <button
-          onClick={handleAddTab}
-          className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors ml-1"
-          title="New Terminal Tab"
-        >
-          <Plus className="h-4 w-4" />
-        </button>
-      </div>
-
-      {/* Terminal Canvas Container viewport */}
+      {/* Terminal Views Viewport */}
       <div className="flex-1 bg-[#090d16] p-2 relative overflow-hidden">
         {tabs.map((tab) => (
-          <div
+          <TerminalView
             key={tab.id}
-            ref={(el) => {
-              containerRefs.current[tab.id] = el;
-            }}
-            className={`w-full h-full ${tab.id === activeTabId ? "block" : "hidden"}`}
+            tabId={tab.id}
+            sessionId={tab.sessionId}
+            targetSerial={tab.targetSerial}
+            activeDevice={activeDevice}
+            isActive={tab.id === activeTabId}
+            onConnectionChange={handleConnectionChange}
+            onRegisterInstance={handleRegisterInstance}
+            onUnregisterInstance={handleUnregisterInstance}
           />
         ))}
       </div>

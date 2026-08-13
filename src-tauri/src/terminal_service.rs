@@ -17,26 +17,26 @@ pub struct ShellCommandResult {
     pub timed_out: bool,
 }
 
-// Global thread-safe map for active interactive shell master PTY descriptors
-static INTERACTIVE_MASTER_MAP: OnceLock<Arc<Mutex<HashMap<String, i32>>>> = OnceLock::new();
-// Global thread-safe map for active interactive child processes
-static INTERACTIVE_CHILD_MAP: OnceLock<Arc<Mutex<HashMap<String, Arc<Mutex<Child>>>>>> = OnceLock::new();
+// Session state structure to hold PTY master descriptor and cancellation tokens if needed
+pub struct InteractiveSession {
+    pub master_fd: i32,
+    pub child: Child,
+}
+
+// Global thread-safe map for active interactive sessions
+static INTERACTIVE_SESSIONS: OnceLock<Arc<Mutex<HashMap<String, Arc<Mutex<InteractiveSession>>>>>> = OnceLock::new();
 // Global map for single background process executions by exec_id
 static SINGLE_EXEC_CHILD_MAP: OnceLock<Arc<Mutex<HashMap<String, Arc<Mutex<Child>>>>>> = OnceLock::new();
 
-fn get_master_map() -> &'static Arc<Mutex<HashMap<String, i32>>> {
-    INTERACTIVE_MASTER_MAP.get_or_init(|| Arc::new(Mutex::new(HashMap::new())))
-}
-
-fn get_child_map() -> &'static Arc<Mutex<HashMap<String, Arc<Mutex<Child>>>>> {
-    INTERACTIVE_CHILD_MAP.get_or_init(|| Arc::new(Mutex::new(HashMap::new())))
+fn get_interactive_sessions() -> &'static Arc<Mutex<HashMap<String, Arc<Mutex<InteractiveSession>>>>> {
+    INTERACTIVE_SESSIONS.get_or_init(|| Arc::new(Mutex::new(HashMap::new())))
 }
 
 fn get_exec_map() -> &'static Arc<Mutex<HashMap<String, Arc<Mutex<Child>>>>> {
     SINGLE_EXEC_CHILD_MAP.get_or_init(|| Arc::new(Mutex::new(HashMap::new())))
 }
 
-// Robust quote-aware and whitespace-safe string tokenizer
+// Quote-aware string tokenizer for command parsing
 fn parse_cmd_str(input: &str) -> Vec<String> {
     let mut tokens = Vec::new();
     let mut current = String::new();
@@ -90,15 +90,15 @@ pub async fn start_interactive_shell(
     cols: Option<u16>,
     rows: Option<u16>,
 ) -> Result<bool, String> {
-    // Close any existing session with this session_id first
+    // Close any existing session with this session_id first to prevent leaks
     let _ = close_interactive_shell(session_id.clone()).await;
 
     #[cfg(unix)]
     {
         use std::os::unix::io::FromRawFd;
 
-        let mut master: libc::c_int = 0;
-        let mut slave: libc::c_int = 0;
+        let mut master: libc::c_int = -1;
+        let mut slave: libc::c_int = -1;
         unsafe {
             if libc::openpty(
                 &mut master,
@@ -124,9 +124,21 @@ pub async fn start_interactive_shell(
             }
         }
 
-        let slave_in = unsafe { std::fs::File::from_raw_fd(libc::dup(slave)) };
-        let slave_out = unsafe { std::fs::File::from_raw_fd(libc::dup(slave)) };
-        let slave_err = unsafe { std::fs::File::from_raw_fd(slave) };
+        let slave_in = unsafe { std::fs::File::from_raw_fd(slave) };
+        let slave_out = match slave_in.try_clone() {
+            Ok(f) => f,
+            Err(e) => {
+                unsafe { libc::close(master) };
+                return Err(format!("Failed to clone PTY slave FD: {}", e));
+            }
+        };
+        let slave_err = match slave_in.try_clone() {
+            Ok(f) => f,
+            Err(e) => {
+                unsafe { libc::close(master) };
+                return Err(format!("Failed to clone PTY slave FD for stderr: {}", e));
+            }
+        };
 
         let mut args = Vec::new();
         if let Some(s) = &serial {
@@ -151,22 +163,20 @@ pub async fn start_interactive_shell(
             }
         };
 
-        // Store master FD in map
-        {
-            let master_map = get_master_map();
-            let mut map = master_map.lock().await;
-            map.insert(session_id.clone(), master);
-        }
+        let session = Arc::new(Mutex::new(InteractiveSession {
+            master_fd: master,
+            child,
+        }));
 
-        let child_arc = Arc::new(Mutex::new(child));
         {
-            let child_map = get_child_map();
-            let mut map = child_map.lock().await;
-            map.insert(session_id.clone(), Arc::clone(&child_arc));
+            let sessions_map = get_interactive_sessions();
+            let mut map = sessions_map.lock().await;
+            map.insert(session_id.clone(), Arc::clone(&session));
         }
 
         let event_name = format!("terminal-output-{}", session_id);
         let app_handle_out = app_handle.clone();
+        let session_id_clone = session_id.clone();
 
         // Spawn blocking task to read from master PTY FD continuously
         tokio::task::spawn_blocking(move || {
@@ -183,8 +193,14 @@ pub async fn start_interactive_shell(
                     break;
                 }
                 let text = String::from_utf8_lossy(&buffer[..n as usize]).to_string();
-                let _ = app_handle_out.emit(&event_name, text);
+                if app_handle_out.emit(&event_name, text).is_err() {
+                    break;
+                }
             }
+
+            // Notify frontend if process finished/closed
+            let close_event = format!("terminal-closed-{}", session_id_clone);
+            let _ = app_handle_out.emit(&close_event, true);
         });
 
         Ok(true)
@@ -201,10 +217,12 @@ pub async fn start_interactive_shell(
 pub async fn write_terminal_input(session_id: String, input: String) -> Result<bool, String> {
     #[cfg(unix)]
     {
-        let master_map = get_master_map();
-        let map = master_map.lock().await;
+        let sessions_map = get_interactive_sessions();
+        let map = sessions_map.lock().await;
 
-        if let Some(&master) = map.get(&session_id) {
+        if let Some(session_arc) = map.get(&session_id) {
+            let session = session_arc.lock().await;
+            let master = session.master_fd;
             let bytes = input.as_bytes();
             let res = unsafe {
                 libc::write(
@@ -238,10 +256,12 @@ pub async fn resize_terminal_session(
 ) -> Result<bool, String> {
     #[cfg(unix)]
     {
-        let master_map = get_master_map();
-        let map = master_map.lock().await;
+        let sessions_map = get_interactive_sessions();
+        let map = sessions_map.lock().await;
 
-        if let Some(&master) = map.get(&session_id) {
+        if let Some(session_arc) = map.get(&session_id) {
+            let session = session_arc.lock().await;
+            let master = session.master_fd;
             let ws = libc::winsize {
                 ws_row: rows,
                 ws_col: cols,
@@ -266,22 +286,22 @@ pub async fn resize_terminal_session(
 
 #[tauri::command]
 pub async fn close_interactive_shell(session_id: String) -> Result<bool, String> {
-    #[cfg(unix)]
-    {
-        let master_map = get_master_map();
-        let mut map = master_map.lock().await;
-        if let Some(master) = map.remove(&session_id) {
-            unsafe { libc::close(master); }
+    let sessions_map = get_interactive_sessions();
+    let mut map = sessions_map.lock().await;
+    
+    if let Some(session_arc) = map.remove(&session_id) {
+        let mut session = session_arc.lock().await;
+        
+        #[cfg(unix)]
+        {
+            if session.master_fd >= 0 {
+                unsafe { libc::close(session.master_fd); }
+                session.master_fd = -1;
+            }
         }
-    }
 
-    // Kill child process if running and reap zombie process
-    let child_map = get_child_map();
-    let mut map = child_map.lock().await;
-    if let Some(child_arc) = map.remove(&session_id) {
-        let mut child = child_arc.lock().await;
-        let _ = child.kill().await;
-        let _ = child.wait().await;
+        let _ = session.child.kill().await;
+        let _ = session.child.wait().await;
         Ok(true)
     } else {
         Ok(false)
@@ -314,7 +334,7 @@ pub async fn execute_terminal_command(
     let parsed_tokens = parse_cmd_str(trimmed);
 
     let (program, final_args) = if trimmed.starts_with("adb shell ") {
-        let raw_cmd = trimmed.trim_start_matches("adb shell ").trim();
+        let raw_cmd = trimmed["adb shell ".len()..].trim();
         base_args.push("shell".to_string());
         base_args.push(raw_cmd.to_string());
         ("adb", base_args)
@@ -475,8 +495,8 @@ pub async fn get_shell_autocompletions(
     {
         use std::os::unix::io::FromRawFd;
 
-        let mut master: libc::c_int = 0;
-        let mut slave: libc::c_int = 0;
+        let mut master: libc::c_int = -1;
+        let mut slave: libc::c_int = -1;
         unsafe {
             if libc::openpty(
                 &mut master,
@@ -490,9 +510,21 @@ pub async fn get_shell_autocompletions(
             }
         }
 
-        let slave_in = unsafe { std::fs::File::from_raw_fd(libc::dup(slave)) };
-        let slave_out = unsafe { std::fs::File::from_raw_fd(libc::dup(slave)) };
-        let slave_err = unsafe { std::fs::File::from_raw_fd(slave) };
+        let slave_in = unsafe { std::fs::File::from_raw_fd(slave) };
+        let slave_out = match slave_in.try_clone() {
+            Ok(f) => f,
+            Err(e) => {
+                unsafe { libc::close(master) };
+                return Err(format!("Failed to clone slave PTY: {}", e));
+            }
+        };
+        let slave_err = match slave_in.try_clone() {
+            Ok(f) => f,
+            Err(e) => {
+                unsafe { libc::close(master) };
+                return Err(format!("Failed to clone slave PTY for stderr: {}", e));
+            }
+        };
 
         let mut args = Vec::new();
         if let Some(s) = &serial {
@@ -552,7 +584,6 @@ pub async fn get_shell_autocompletions(
             );
         }
 
-        // Read autocomplete response with timeout loop matching prototype/demo.py
         let start = std::time::Instant::now();
         let timeout = Duration::from_millis(220);
         let mut raw_buf = Vec::new();
@@ -597,7 +628,6 @@ pub async fn get_shell_autocompletions(
                 let item = part.to_string();
                 let item_lower = item.to_lowercase();
 
-                // Exclude matches with current full input, current last token, or prompt commands
                 if item_lower == input_trimmed
                     || item_lower == last_token
                     || item == "adb"
@@ -621,5 +651,6 @@ pub async fn get_shell_autocompletions(
         Ok(Vec::new())
     }
 }
+
 
 

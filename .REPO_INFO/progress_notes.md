@@ -1,1 +1,1 @@
-2nd baaki , shell pachhi thhi baaki chhe
+2,9 baaki , file manager pchhi thhi baaki
