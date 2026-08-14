@@ -39,9 +39,19 @@ export const CustomNotificationModal: React.FC<CustomNotificationModalProps> = (
         onFeedback(`Sent toast/input: ${title}`);
       } else {
         // Broadcast custom notification intent
-        await invoke("execute_pm_command", {
+        await invoke("execute_intent", {
           serial: activeDevice,
-          command: `am broadcast -a android.intent.action.MAIN --es title "${title}" --es message "${message}"`,
+          intentType: "broadcast",
+          action: "android.intent.action.MAIN",
+          packageName: null,
+          activityName: null,
+          dataUri: null,
+          category: null,
+          flags: null,
+          extras: [
+            { key: "title", value: title, extra_type: "string" },
+            { key: "message", value: message, extra_type: "string" },
+          ],
         });
         onFeedback(`Broadcasted notification intent`);
       }

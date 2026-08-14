@@ -19,6 +19,15 @@ pub struct PairResult {
     pub message: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DiscoveredService {
+    pub service_type: String, // "pairing" or "connect"
+    pub name: String,
+    pub ip: String,
+    pub port: u16,
+    pub full_address: String,
+}
+
 pub struct AdbState {
     pub active_device: Mutex<Option<String>>,
     pub is_qr_listening: Arc<AtomicBool>,
@@ -328,6 +337,68 @@ pub async fn stop_qr_pair_listener(state: State<'_, AdbState>) -> std::result::R
     Ok("QR listener stop requested".to_string())
 }
 
+// Discover mDNS services for pairing and connect
+#[tauri::command]
+pub async fn discover_wireless_services() -> std::result::Result<Vec<DiscoveredService>, String> {
+    tokio::task::spawn_blocking(|| {
+        use mdns_sd::{ServiceDaemon, ServiceEvent};
+        let mut discovered = Vec::new();
+        if let Ok(mdns) = ServiceDaemon::new() {
+            let pair_recv = mdns.browse("_adb-tls-pairing._tcp.local.");
+            let connect_recv = mdns.browse("_adb-tls-connect._tcp.local.");
+
+            let start = std::time::Instant::now();
+            while start.elapsed() < std::time::Duration::from_millis(1500) {
+                if let Ok(ref pair_rx) = pair_recv {
+                    while let Ok(event) = pair_rx.recv_timeout(std::time::Duration::from_millis(50)) {
+                        if let ServiceEvent::ServiceResolved(info) = event {
+                            if let Some(ip_addr) = pick_best_ip(info.get_addresses()) {
+                                let port = info.get_port();
+                                let ip_str = ip_addr.to_string();
+                                let full = format_target(&ip_addr, port);
+                                if !discovered.iter().any(|d: &DiscoveredService| d.full_address == full && d.service_type == "pairing") {
+                                    discovered.push(DiscoveredService {
+                                        service_type: "pairing".to_string(),
+                                        name: info.get_fullname().to_string(),
+                                        ip: ip_str,
+                                        port,
+                                        full_address: full,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if let Ok(ref connect_rx) = connect_recv {
+                    while let Ok(event) = connect_rx.recv_timeout(std::time::Duration::from_millis(50)) {
+                        if let ServiceEvent::ServiceResolved(info) = event {
+                            if let Some(ip_addr) = pick_best_ip(info.get_addresses()) {
+                                let port = info.get_port();
+                                let ip_str = ip_addr.to_string();
+                                let full = format_target(&ip_addr, port);
+                                if !discovered.iter().any(|d: &DiscoveredService| d.full_address == full && d.service_type == "connect") {
+                                    discovered.push(DiscoveredService {
+                                        service_type: "connect".to_string(),
+                                        name: info.get_fullname().to_string(),
+                                        ip: ip_str,
+                                        port,
+                                        full_address: full,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            let _ = mdns.shutdown();
+        }
+        Ok(discovered)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))?
+}
+
 // Send Keyevent to target device
 #[tauri::command]
 pub async fn send_keyevent(serial: String, keycode: i32) -> std::result::Result<String, String> {
@@ -535,3 +606,59 @@ pub async fn adjust_volume(serial: String, stream_type: String, direction: Strin
 
     Ok(format!("Triggered volume key {}", direction))
 }
+
+// Send swipe gesture
+#[tauri::command]
+pub async fn send_swipe(
+    serial: String,
+    x1: i32,
+    y1: i32,
+    x2: i32,
+    y2: i32,
+    duration_ms: Option<i32>,
+) -> std::result::Result<String, String> {
+    let dur_str = duration_ms.unwrap_or(300).to_string();
+    let output = Command::new("adb")
+        .args([
+            "-s",
+            &serial,
+            "shell",
+            "input",
+            "swipe",
+            &x1.to_string(),
+            &y1.to_string(),
+            &x2.to_string(),
+            &y2.to_string(),
+            &dur_str,
+        ])
+        .output()
+        .map_err(|e| format!("Failed to send swipe: {}", e))?;
+
+    if output.status.success() {
+        Ok("Swipe gesture sent".to_string())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+    }
+}
+
+// Expand status bar notification shade
+#[tauri::command]
+pub async fn expand_notifications(serial: String) -> std::result::Result<String, String> {
+    let output = Command::new("adb")
+        .args(["-s", &serial, "shell", "cmd", "statusbar", "expand-notifications"])
+        .output();
+
+    if let Ok(out) = output {
+        if out.status.success() {
+            return Ok("Notification shade expanded".to_string());
+        }
+    }
+
+    // Fallback for older Android versions
+    let _ = Command::new("adb")
+        .args(["-s", &serial, "shell", "service", "call", "statusbar", "1"])
+        .output();
+
+    Ok("Triggered notification shade expand".to_string())
+}
+

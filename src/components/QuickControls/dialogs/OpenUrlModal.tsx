@@ -43,12 +43,14 @@ export const OpenUrlModal: React.FC<OpenUrlModalProps> = ({
         // Assume intent or settings action
         await invoke("execute_intent", {
           serial: activeDevice,
+          intentType: "start",
           action: finalUrl,
-          component: null,
+          packageName: null,
+          activityName: null,
           dataUri: null,
-          mimeType: null,
-          flags: [],
-          extras: {},
+          category: null,
+          flags: null,
+          extras: [],
         });
       }
       onFeedback(`Opened: ${finalUrl}`);

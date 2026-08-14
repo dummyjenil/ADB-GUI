@@ -63,9 +63,13 @@ export const QuickControls: React.FC<QuickControlsProps> = ({ activeDevice, onVi
         } else if (action.id === "unlock_screen") {
           await invoke("send_keyevent", { serial: activeDevice, keycode: 224 });
           // Simulating upward swipe to unlock
-          await invoke("execute_pm_command", {
+          await invoke("send_swipe", {
             serial: activeDevice,
-            command: "input swipe 500 1500 500 500 200",
+            x1: 500,
+            y1: 1500,
+            x2: 500,
+            y2: 500,
+            durationMs: 200,
           });
           showToast("Device unlocked / Swipe sent");
         } else if (action.id === "rotate_screen") {
@@ -76,18 +80,19 @@ export const QuickControls: React.FC<QuickControlsProps> = ({ activeDevice, onVi
         } else if (action.id === "open_camera") {
           await invoke("execute_intent", {
             serial: activeDevice,
+            intentType: "start",
             action: "android.media.action.IMAGE_CAPTURE",
-            component: null,
+            packageName: null,
+            activityName: null,
             dataUri: null,
-            mimeType: null,
-            flags: [],
-            extras: {},
+            category: null,
+            flags: null,
+            extras: [],
           });
           showToast("Opened Camera App");
         } else if (action.id === "expand_notifications") {
-          await invoke("execute_pm_command", {
+          await invoke("expand_notifications", {
             serial: activeDevice,
-            command: "cmd statusbar expand-notifications",
           });
           showToast("Notification shade expanded");
         }

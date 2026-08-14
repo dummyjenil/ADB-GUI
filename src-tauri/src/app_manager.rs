@@ -521,9 +521,11 @@ pub async fn backup_app_data(serial: String, package_name: String, save_path: St
 }
 
 #[tauri::command]
-pub async fn execute_pm_command(serial: String, command: String, args: Vec<String>) -> Result<String, String> {
+pub async fn execute_pm_command(serial: String, command: String, args: Option<Vec<String>>) -> Result<String, String> {
     let mut shell_args = vec!["pm", command.as_str()];
-    for a in &args {
+    let empty_args = Vec::new();
+    let actual_args = args.as_ref().unwrap_or(&empty_args);
+    for a in actual_args {
         shell_args.push(a.as_str());
     }
     run_adb_shell(&serial, &shell_args)
@@ -706,16 +708,17 @@ pub async fn set_app_op_mode(serial: String, package_name: String, op: String, m
 #[tauri::command]
 pub async fn execute_intent(
     serial: String,
-    intent_type: String,
+    intent_type: Option<String>,
     package_name: Option<String>,
     activity_name: Option<String>,
     action: Option<String>,
     data_uri: Option<String>,
     category: Option<String>,
-    extras: Vec<IntentExtra>,
+    extras: Option<Vec<IntentExtra>>,
     flags: Option<String>,
 ) -> Result<String, String> {
-    let mut args: Vec<String> = vec!["am".to_string(), intent_type];
+    let itype = intent_type.unwrap_or_else(|| "start".to_string());
+    let mut args: Vec<String> = vec!["am".to_string(), itype];
 
     if let (Some(pkg), Some(act)) = (&package_name, &activity_name) {
         if !pkg.trim().is_empty() && !act.trim().is_empty() {
@@ -760,7 +763,9 @@ pub async fn execute_intent(
         }
     }
 
-    for extra in &extras {
+    let empty_extras = Vec::new();
+    let actual_extras = extras.as_ref().unwrap_or(&empty_extras);
+    for extra in actual_extras {
         if extra.key.trim().is_empty() {
             continue;
         }
