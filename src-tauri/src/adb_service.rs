@@ -436,4 +436,102 @@ pub async fn pick_multiple_files() -> std::result::Result<Option<Vec<String>>, S
     }))
 }
 
+// Open URL / Deep Link on Device
+#[tauri::command]
+pub async fn open_url_on_device(serial: String, url: String) -> std::result::Result<String, String> {
+    let output = Command::new("adb")
+        .args(["-s", &serial, "shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", &url])
+        .output()
+        .map_err(|e| format!("Failed to open URL: {}", e))?;
 
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+
+    if output.status.success() || !stdout.is_empty() {
+        Ok(format!("URL launched: {}", url))
+    } else {
+        Err(if !stderr.is_empty() { stderr } else { stdout })
+    }
+}
+
+// Set device screen orientation
+#[tauri::command]
+pub async fn set_device_orientation(serial: String, orientation: String) -> std::result::Result<String, String> {
+    match orientation.as_str() {
+        "auto" => {
+            let _ = Command::new("adb")
+                .args(["-s", &serial, "shell", "settings", "put", "system", "accelerometer_rotation", "1"])
+                .output();
+            Ok("Auto-rotation enabled".to_string())
+        }
+        "portrait" => {
+            let _ = Command::new("adb")
+                .args(["-s", &serial, "shell", "settings", "put", "system", "accelerometer_rotation", "0"])
+                .output();
+            let _ = Command::new("adb")
+                .args(["-s", &serial, "shell", "settings", "put", "system", "user_rotation", "0"])
+                .output();
+            Ok("Set orientation to Portrait".to_string())
+        }
+        "landscape" => {
+            let _ = Command::new("adb")
+                .args(["-s", &serial, "shell", "settings", "put", "system", "accelerometer_rotation", "0"])
+                .output();
+            let _ = Command::new("adb")
+                .args(["-s", &serial, "shell", "settings", "put", "system", "user_rotation", "1"])
+                .output();
+            Ok("Set orientation to Landscape".to_string())
+        }
+        "reverse_landscape" => {
+            let _ = Command::new("adb")
+                .args(["-s", &serial, "shell", "settings", "put", "system", "accelerometer_rotation", "0"])
+                .output();
+            let _ = Command::new("adb")
+                .args(["-s", &serial, "shell", "settings", "put", "system", "user_rotation", "3"])
+                .output();
+            Ok("Set orientation to Reverse Landscape".to_string())
+        }
+        _ => Err("Invalid orientation mode".to_string()),
+    }
+}
+
+// Volume controller helper
+#[tauri::command]
+pub async fn adjust_volume(serial: String, stream_type: String, direction: String) -> std::result::Result<String, String> {
+    // direction can be "raise", "lower", "same", "mute", "unmute"
+    // stream_type: "STREAM_MUSIC" (3), "STREAM_RING" (2), "STREAM_ALARM" (4), "STREAM_VOICE_CALL" (0)
+    let stream_id = match stream_type.as_str() {
+        "call" => "0",
+        "ring" => "2",
+        "music" => "3",
+        "alarm" => "4",
+        "notification" => "5",
+        _ => "3",
+    };
+
+    let dir_val = match direction.as_str() {
+        "up" | "raise" => "1",
+        "down" | "lower" => "-1",
+        "mute" => "-100",
+        "unmute" => "100",
+        _ => "1",
+    };
+
+    let output = Command::new("adb")
+        .args(["-s", &serial, "shell", "media", "volume", "--stream", stream_id, "--set", dir_val])
+        .output();
+
+    if let Ok(out) = output {
+        if out.status.success() {
+            return Ok(format!("Volume adjusted for stream {}", stream_type));
+        }
+    }
+
+    // Fallback to standard keyevent if media volume command fails or older Android
+    let keycode = if direction == "up" || direction == "raise" { "24" } else { "25" };
+    let _ = Command::new("adb")
+        .args(["-s", &serial, "shell", "input", "keyevent", keycode])
+        .output();
+
+    Ok(format!("Triggered volume key {}", direction))
+}

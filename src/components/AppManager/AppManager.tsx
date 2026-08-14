@@ -6,6 +6,7 @@ import { AppFiltersBar } from "./AppFiltersBar";
 import { AppTable } from "./AppTable";
 import { PackageDetailModal } from "./PackageDetailModal";
 import { AdvancedPmPanel } from "./AdvancedPmPanel";
+import { PermissionsMatrixModal } from "./PermissionsMatrixModal";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
@@ -19,6 +20,7 @@ import {
   XCircle,
   FolderOpen,
   SlidersHorizontal,
+  ShieldCheck,
 } from "lucide-react";
 
 import { CommandPreview } from "../../types/terminal";
@@ -38,6 +40,7 @@ export const AppManager: React.FC<AppManagerProps> = ({ activeDevice, onViewComm
   const [inspectedPackage, setInspectedPackage] = useState<PackageInfo | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const [showAdvancedPm, setShowAdvancedPm] = useState(false);
+  const [showPermMatrix, setShowPermMatrix] = useState(false);
   const [installing, setInstalling] = useState(false);
 
   const addLog = (msg: string) => {
@@ -297,6 +300,14 @@ export const AppManager: React.FC<AppManagerProps> = ({ activeDevice, onViewComm
           </Button>
 
           <Button
+            variant="secondary"
+            icon={<ShieldCheck className="h-4 w-4 text-emerald-400" />}
+            onClick={() => setShowPermMatrix(true)}
+          >
+            Permissions Matrix
+          </Button>
+
+          <Button
             variant={showAdvancedPm ? "accent" : "secondary"}
             icon={<SlidersHorizontal className="h-4 w-4" />}
             onClick={() => setShowAdvancedPm(!showAdvancedPm)}
@@ -349,6 +360,17 @@ export const AppManager: React.FC<AppManagerProps> = ({ activeDevice, onViewComm
 
       {/* Advanced PM Tool Panel */}
       {showAdvancedPm && <AdvancedPmPanel activeDevice={activeDevice} addLog={addLog} />}
+
+      {/* Permissions Matrix Modal */}
+      {showPermMatrix && activeDevice && (
+        <PermissionsMatrixModal
+          isOpen={showPermMatrix}
+          onClose={() => setShowPermMatrix(false)}
+          activeDevice={activeDevice}
+          apps={apps}
+          addLog={addLog}
+        />
+      )}
 
       {/* Filters Bar */}
       <AppFiltersBar

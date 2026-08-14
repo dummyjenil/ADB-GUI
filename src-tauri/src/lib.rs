@@ -8,6 +8,7 @@ pub mod port_forward_service;
 pub mod screen_tools;
 pub mod uiautomator_service;
 pub mod notification_service;
+pub mod communication_service;
 
 use adb_service::*;
 use device_dashboard::*;
@@ -19,6 +20,7 @@ use port_forward_service::*;
 use screen_tools::*;
 use uiautomator_service::*;
 use notification_service::*;
+use communication_service::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -36,6 +38,9 @@ pub fn run() {
             send_text_input,
             set_device_clipboard,
             get_device_clipboard,
+            open_url_on_device,
+            set_device_orientation,
+            adjust_volume,
             install_apk,
             pick_apk_file,
             get_device_full_details,
@@ -97,7 +102,13 @@ pub fn run() {
             stop_screen_recording,
             save_media_file,
             dump_ui_hierarchy,
-            get_device_notifications
+            get_device_notifications,
+            get_call_logs,
+            trigger_call,
+            end_call,
+            get_sms_list,
+            send_sms,
+            get_contacts_list
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

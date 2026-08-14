@@ -1,22 +1,22 @@
 import React, { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Card } from "./ui/Card";
-import { Button } from "./ui/Button";
 import { EmptyState } from "./ui/EmptyState";
 import {
   Power,
-  Sun,
-  Moon,
   Volume2,
-  Volume1,
-  VolumeX,
+  Camera,
   Home,
-  ArrowLeft,
-  Square,
-  CheckCircle2,
+  Sparkles,
   Terminal,
+  CheckCircle2,
 } from "lucide-react";
 import { CommandPreview } from "../types/terminal";
+import { QUICK_ACTIONS_REGISTRY } from "./QuickControls/registry";
+import { QuickAction, ActionCategory } from "./QuickControls/types";
+import { OpenUrlModal } from "./QuickControls/dialogs/OpenUrlModal";
+import { CustomNotificationModal } from "./QuickControls/dialogs/CustomNotificationModal";
+import { VolumeControlModal } from "./QuickControls/dialogs/VolumeControlModal";
 
 interface QuickControlsProps {
   activeDevice: string | null;
@@ -25,186 +25,199 @@ interface QuickControlsProps {
 
 export const QuickControls: React.FC<QuickControlsProps> = ({ activeDevice, onViewCommand }) => {
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [openUrlOpen, setOpenUrlOpen] = useState(false);
+  const [customNotifOpen, setCustomNotifOpen] = useState(false);
+  const [volumeModalOpen, setVolumeModalOpen] = useState(false);
+  const [currentRotation, setCurrentRotation] = useState<"auto" | "portrait" | "landscape">("auto");
 
-  const triggerKey = async (keycode: number, label: string) => {
+  const showToast = (msg: string) => {
+    setFeedback(msg);
+    setTimeout(() => setFeedback(null), 2500);
+  };
+
+  const handleActionClick = async (action: QuickAction) => {
     if (!activeDevice) return;
-    try {
-      await invoke("send_keyevent", { serial: activeDevice, keycode });
-      setFeedback(`Triggered ${label}`);
-      setTimeout(() => setFeedback(null), 2000);
-    } catch (err: any) {
-      setFeedback(`Error: ${err}`);
+
+    if (action.type === "dialog") {
+      if (action.id === "open_url_dialog") setOpenUrlOpen(true);
+      if (action.id === "custom_notification_dialog") setCustomNotifOpen(true);
+      if (action.id === "volume_modal") setVolumeModalOpen(true);
+      return;
+    }
+
+    if (action.type === "keyevent" && action.keycode !== undefined) {
+      try {
+        await invoke("send_keyevent", { serial: activeDevice, keycode: action.keycode });
+        showToast(`Triggered ${action.title}`);
+      } catch (err: any) {
+        showToast(`Error: ${String(err)}`);
+      }
+      return;
+    }
+
+    if (action.type === "custom_exec") {
+      try {
+        if (action.id === "lock_screen") {
+          await invoke("send_keyevent", { serial: activeDevice, keycode: 26 });
+          showToast("Screen locked");
+        } else if (action.id === "unlock_screen") {
+          await invoke("send_keyevent", { serial: activeDevice, keycode: 224 });
+          // Simulating upward swipe to unlock
+          await invoke("execute_pm_command", {
+            serial: activeDevice,
+            command: "input swipe 500 1500 500 500 200",
+          });
+          showToast("Device unlocked / Swipe sent");
+        } else if (action.id === "rotate_screen") {
+          const nextMode = currentRotation === "auto" ? "landscape" : currentRotation === "landscape" ? "portrait" : "auto";
+          await invoke("set_device_orientation", { serial: activeDevice, orientation: nextMode });
+          setCurrentRotation(nextMode);
+          showToast(`Orientation set to: ${nextMode.toUpperCase()}`);
+        } else if (action.id === "open_camera") {
+          await invoke("execute_intent", {
+            serial: activeDevice,
+            action: "android.media.action.IMAGE_CAPTURE",
+            component: null,
+            dataUri: null,
+            mimeType: null,
+            flags: [],
+            extras: {},
+          });
+          showToast("Opened Camera App");
+        } else if (action.id === "expand_notifications") {
+          await invoke("execute_pm_command", {
+            serial: activeDevice,
+            command: "cmd statusbar expand-notifications",
+          });
+          showToast("Notification shade expanded");
+        }
+      } catch (err: any) {
+        showToast(`Error: ${String(err)}`);
+      }
     }
   };
 
-  const handleShowCommand = (title: string, keycode: number, description: string) => {
+  const handleShowPreview = (action: QuickAction) => {
     if (!onViewCommand) return;
     const serial = activeDevice || "<serial>";
-    onViewCommand({
-      title,
-      command: `adb -s ${serial} shell input keyevent ${keycode}`,
-      description,
-      category: "Input Keyevent",
-    });
+    if (action.commandSnippet) {
+      onViewCommand({
+        title: action.commandSnippet.title,
+        command: action.commandSnippet.command(serial),
+        description: action.commandSnippet.description,
+        category: "Quick Controls",
+      });
+    } else if (action.type === "keyevent" && action.keycode !== undefined) {
+      onViewCommand({
+        title: `${action.title} Keyevent`,
+        command: `adb -s ${serial} shell input keyevent ${action.keycode}`,
+        description: `Sends Android keycode ${action.keycode} to active device.`,
+        category: "Input Keyevent",
+      });
+    }
   };
 
   if (!activeDevice) {
     return <EmptyState title="No Active Device Selected" description="Connect or select a device to use Quick Controls." />;
   }
 
+  const renderSection = (title: string, icon: React.ReactNode, category: ActionCategory, variant: "primary" | "secondary" | "accent" | "dark") => {
+    const actions = QUICK_ACTIONS_REGISTRY.filter((a) => a.category === category);
+    return (
+      <Card headerTitle={title} headerIcon={icon} headerVariant={variant}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+          {actions.map((action) => (
+            <div key={action.id} className="flex flex-col gap-1">
+              <button
+                type="button"
+                onClick={() => handleActionClick(action)}
+                className={`neo-btn p-4 flex flex-col items-center justify-center gap-1.5 group cursor-pointer w-full text-center transition-all ${
+                  action.btnVariant === "rose"
+                    ? "bg-rose-500 text-white"
+                    : action.btnVariant === "amber"
+                    ? "bg-amber-400 text-black"
+                    : action.btnVariant === "cyan"
+                    ? "bg-cyan-500 text-black"
+                    : action.btnVariant === "primary"
+                    ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)]"
+                    : action.btnVariant === "accent"
+                    ? "bg-violet-500 text-white"
+                    : "bg-[var(--neo-secondary)] text-[var(--neo-secondary-text)]"
+                }`}
+              >
+                <div className="group-hover:scale-110 transition-transform">{action.icon}</div>
+                <span className="text-xs font-black uppercase tracking-tight">{action.title}</span>
+                {action.subtitle && (
+                  <span className="text-[10px] font-mono opacity-80 truncate max-w-full">
+                    {action.subtitle}
+                  </span>
+                )}
+              </button>
+              {onViewCommand && (action.commandSnippet || action.keycode !== undefined) && (
+                <button
+                  type="button"
+                  onClick={() => handleShowPreview(action)}
+                  className="text-[10px] font-bold text-[var(--neo-text-muted)] hover:text-[var(--neo-primary)] flex items-center justify-center gap-1 py-0.5 cursor-pointer"
+                >
+                  <Terminal className="h-3 w-3" /> View Command
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      </Card>
+    );
+  };
+
   return (
     <div className="space-y-6">
-      {/* Power & Display Controls */}
-      <Card
-        headerTitle="Power & Display Controls"
-        headerIcon={<Power className="h-5 w-5" />}
-        headerVariant="accent"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex flex-col gap-1">
-            <button
-              onClick={() => triggerKey(26, "Power Button")}
-              className="neo-btn p-5 bg-rose-500 text-white flex flex-col items-center justify-center gap-2 group cursor-pointer w-full"
-            >
-              <Power className="h-8 w-8 group-hover:scale-110 transition-transform" />
-              <span className="text-sm font-extrabold uppercase">Power Toggle</span>
-              <span className="text-[11px] font-mono opacity-80">KEYEVENT_POWER (26)</span>
-            </button>
-            {onViewCommand && (
-              <button
-                onClick={() => handleShowCommand("Power Keyevent", 26, "Toggles device power / screen state.")}
-                className="text-[10px] font-bold text-[var(--neo-text-muted)] hover:text-rose-500 flex items-center justify-center gap-1 py-1"
-              >
-                <Terminal className="h-3 w-3" /> View Command
-              </button>
-            )}
-          </div>
+      {/* Power & Display */}
+      {renderSection("Power, Screen & Orientation Controls", <Power className="h-5 w-5" />, "power_display", "accent")}
 
-          <div className="flex flex-col gap-1">
-            <button
-              onClick={() => triggerKey(224, "Screen Wakeup")}
-              className="neo-btn p-5 bg-amber-400 text-black flex flex-col items-center justify-center gap-2 group cursor-pointer w-full"
-            >
-              <Sun className="h-8 w-8 group-hover:scale-110 transition-transform" />
-              <span className="text-sm font-extrabold uppercase">Wake Up Screen</span>
-              <span className="text-[11px] font-mono opacity-80">KEYCODE_WAKEUP (224)</span>
-            </button>
-            {onViewCommand && (
-              <button
-                onClick={() => handleShowCommand("Wakeup Keyevent", 224, "Wakes up screen display.")}
-                className="text-[10px] font-bold text-[var(--neo-text-muted)] hover:text-amber-500 flex items-center justify-center gap-1 py-1"
-              >
-                <Terminal className="h-3 w-3" /> View Command
-              </button>
-            )}
-          </div>
+      {/* Audio & Media Controls */}
+      {renderSection("Volume & Media Controls", <Volume2 className="h-5 w-5" />, "audio_media", "primary")}
 
-          <div className="flex flex-col gap-1">
-            <button
-              onClick={() => triggerKey(223, "Screen Sleep")}
-              className="neo-btn p-5 bg-[var(--neo-secondary)] text-[var(--neo-secondary-text)] flex flex-col items-center justify-center gap-2 group cursor-pointer w-full"
-            >
-              <Moon className="h-8 w-8 group-hover:scale-110 transition-transform" />
-              <span className="text-sm font-extrabold uppercase">Sleep Screen</span>
-              <span className="text-[11px] font-mono opacity-80">KEYCODE_SLEEP (223)</span>
-            </button>
-            {onViewCommand && (
-              <button
-                onClick={() => handleShowCommand("Sleep Keyevent", 223, "Puts device display to sleep.")}
-                className="text-[10px] font-bold text-[var(--neo-text-muted)] hover:text-[var(--neo-secondary)] flex items-center justify-center gap-1 py-1"
-              >
-                <Terminal className="h-3 w-3" /> View Command
-              </button>
-            )}
-          </div>
-        </div>
-      </Card>
-
-      {/* Volume Controller */}
-      <Card
-        headerTitle="Volume Controller"
-        headerIcon={<Volume2 className="h-5 w-5" />}
-        headerVariant="primary"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Button
-            onClick={() => triggerKey(24, "Volume Up")}
-            variant="primary"
-            size="lg"
-            className="w-full justify-center"
-            icon={<Volume2 className="h-5 w-5" />}
-          >
-            Volume Up (+1)
-          </Button>
-
-          <Button
-            onClick={() => triggerKey(25, "Volume Down")}
-            variant="secondary"
-            size="lg"
-            className="w-full justify-center"
-            icon={<Volume1 className="h-5 w-5" />}
-          >
-            Volume Down (-1)
-          </Button>
-
-          <Button
-            onClick={() => triggerKey(164, "Mute Volume")}
-            variant="rose"
-            size="lg"
-            className="w-full justify-center"
-            icon={<VolumeX className="h-5 w-5" />}
-          >
-            Toggle Mute
-          </Button>
-        </div>
-      </Card>
+      {/* Camera & Hardware */}
+      {renderSection("Camera & Direct Actions", <Camera className="h-5 w-5" />, "camera_hardware", "dark")}
 
       {/* Navigation Keys */}
-      <Card
-        headerTitle="Hardware Navigation Keys"
-        headerIcon={<Home className="h-5 w-5" />}
-        headerVariant="secondary"
-      >
-        <div className="grid grid-cols-3 gap-4">
-          <Button
-            onClick={() => triggerKey(4, "Back")}
-            variant="accent"
-            size="lg"
-            className="flex-col py-4 gap-1.5"
-            icon={<ArrowLeft className="h-6 w-6" />}
-          >
-            Back Key
-          </Button>
+      {renderSection("Hardware Navigation Keys", <Home className="h-5 w-5" />, "navigation", "secondary")}
 
-          <Button
-            onClick={() => triggerKey(3, "Home")}
-            variant="primary"
-            size="lg"
-            className="flex-col py-4 gap-1.5"
-            icon={<Home className="h-6 w-6" />}
-          >
-            Home Key
-          </Button>
-
-          <Button
-            onClick={() => triggerKey(187, "App Switcher / Recents")}
-            variant="secondary"
-            size="lg"
-            className="flex-col py-4 gap-1.5"
-            icon={<Square className="h-6 w-6" />}
-          >
-            Recents Key
-          </Button>
-        </div>
-      </Card>
+      {/* Shortcuts & Broadcast Dialogs */}
+      {renderSection("Shortcuts, URL & Notifications", <Sparkles className="h-5 w-5" />, "shortcuts", "primary")}
 
       {/* Floating Status Notification Toast */}
       {feedback && (
-        <div className="fixed bottom-6 right-6 neo-box px-4 py-2.5 bg-[var(--neo-primary)] text-[var(--neo-primary-text)] text-xs font-black flex items-center gap-2 animate-neo-slide z-50">
+        <div className="fixed bottom-6 right-6 neo-box px-4 py-2.5 bg-[var(--neo-primary)] text-[var(--neo-primary-text)] text-xs font-black flex items-center gap-2 animate-neo-slide z-50 shadow-[4px_4px_0px_0px_var(--neo-shadow)]">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           <span>{feedback}</span>
         </div>
       )}
+
+      {/* Modals */}
+      <OpenUrlModal
+        isOpen={openUrlOpen}
+        onClose={() => setOpenUrlOpen(false)}
+        activeDevice={activeDevice}
+        onFeedback={showToast}
+        onViewCommand={onViewCommand}
+      />
+
+      <CustomNotificationModal
+        isOpen={customNotifOpen}
+        onClose={() => setCustomNotifOpen(false)}
+        activeDevice={activeDevice}
+        onFeedback={showToast}
+        onViewCommand={onViewCommand}
+      />
+
+      <VolumeControlModal
+        isOpen={volumeModalOpen}
+        onClose={() => setVolumeModalOpen(false)}
+        activeDevice={activeDevice}
+        onFeedback={showToast}
+        onViewCommand={onViewCommand}
+      />
     </div>
   );
 };
