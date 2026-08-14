@@ -7,8 +7,33 @@ use std::env;
 pub struct UiDumpResult {
     pub success: bool,
     pub screenshot_path: String,
+    pub data_url: Option<String>,
     pub xml_content: String,
     pub error: Option<String>,
+}
+
+fn to_base64(bytes: &[u8]) -> String {
+    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity((bytes.len() + 2) / 3 * 4);
+    for chunk in bytes.chunks(3) {
+        let b0 = chunk[0];
+        let b1 = if chunk.len() > 1 { chunk[1] } else { 0 };
+        let b2 = if chunk.len() > 2 { chunk[2] } else { 0 };
+
+        out.push(CHARSET[(b0 >> 2) as usize] as char);
+        out.push(CHARSET[(((b0 & 0x03) << 4) | (b1 >> 4)) as usize] as char);
+        if chunk.len() > 1 {
+            out.push(CHARSET[(((b1 & 0x0f) << 2) | (b2 >> 6)) as usize] as char);
+        } else {
+            out.push('=');
+        }
+        if chunk.len() > 2 {
+            out.push(CHARSET[(b2 & 0x3f) as usize] as char);
+        } else {
+            out.push('=');
+        }
+    }
+    out
 }
 
 fn get_temp_dir() -> std::path::PathBuf {
@@ -18,43 +43,69 @@ fn get_temp_dir() -> std::path::PathBuf {
     dir
 }
 
-/// Dumps active device screen image to disk file and XML hierarchy via uiautomator
+/// Dumps active device screen image and XML hierarchy via uiautomator
 #[tauri::command]
 pub async fn dump_ui_hierarchy(serial: String) -> Result<UiDumpResult, String> {
     let ts = chrono_now();
     let temp_img_path = get_temp_dir().join(format!("dump_{}_{}.png", serial.replace(':', "_"), ts));
 
-    // 1. Capture screen image directly to disk
+    // 1. Check if device screen is active / awake
+    let power_check = Command::new("adb")
+        .args(["-s", &serial, "shell", "dumpsys", "power"])
+        .output();
+
+    if let Ok(ref p_out) = power_check {
+        let p_str = String::from_utf8_lossy(&p_out.stdout);
+        if p_str.contains("mWakefulness=Asleep") || p_str.contains("Display Power: state=OFF") {
+            return Ok(UiDumpResult {
+                success: false,
+                screenshot_path: String::new(),
+                data_url: None,
+                xml_content: String::new(),
+                error: Some("Phone screen is turned OFF or asleep. Please turn on and unlock your phone before inspecting UI.".to_string()),
+            });
+        }
+    }
+
+    // 2. Capture screen image
     let cap_output = Command::new("adb")
         .args(["-s", &serial, "exec-out", "screencap", "-p"])
         .output()
         .map_err(|e| format!("Failed to execute screencap: {}", e))?;
 
-    let img_path_str = if cap_output.status.success() && !cap_output.stdout.is_empty() {
-        let _ = fs::write(&temp_img_path, &cap_output.stdout);
-        temp_img_path.to_string_lossy().to_string()
-    } else {
-        String::new()
-    };
+    if !cap_output.status.success() || cap_output.stdout.is_empty() {
+        let err_msg = String::from_utf8_lossy(&cap_output.stderr);
+        return Ok(UiDumpResult {
+            success: false,
+            screenshot_path: String::new(),
+            data_url: None,
+            xml_content: String::new(),
+            error: Some(format!("Screen capture failed: {}. Ensure device screen is ON and not displaying DRM-protected content.", if err_msg.is_empty() { "No image output" } else { &err_msg })),
+        });
+    }
 
-    // 2. Run uiautomator dump /sdcard/window_dump.xml
+    let _ = fs::write(&temp_img_path, &cap_output.stdout);
+    let data_url_str = format!("data:image/png;base64,{}", to_base64(&cap_output.stdout));
+
+    // 3. Run uiautomator dump /sdcard/window_dump.xml
     let dump_cmd = Command::new("adb")
         .args(["-s", &serial, "shell", "uiautomator", "dump", "/sdcard/window_dump.xml"])
         .output()
         .map_err(|e| format!("Failed to dump UI hierarchy: {}", e))?;
 
     let dump_msg = String::from_utf8_lossy(&dump_cmd.stdout);
-    if !dump_cmd.status.success() && !dump_msg.contains("UI hierchary dumped to") {
+    if !dump_cmd.status.success() && !dump_msg.contains("UI hierchary dumped to") && !dump_msg.contains("UI hierarchy dumped to") {
         let err_msg = String::from_utf8_lossy(&dump_cmd.stderr);
         return Ok(UiDumpResult {
             success: false,
-            screenshot_path: img_path_str,
+            screenshot_path: temp_img_path.to_string_lossy().to_string(),
+            data_url: Some(data_url_str),
             xml_content: String::new(),
-            error: Some(format!("uiautomator dump failed: {}", if err_msg.is_empty() { dump_msg } else { err_msg })),
+            error: Some(format!("uiautomator dump failed: {}. Phone might be in sleep or UI transition.", if err_msg.is_empty() { dump_msg.to_string() } else { err_msg.to_string() })),
         });
     }
 
-    // 3. Cat XML file from device
+    // 4. Cat XML file from device
     let cat_output = Command::new("adb")
         .args(["-s", &serial, "exec-out", "cat", "/sdcard/window_dump.xml"])
         .output()
@@ -70,15 +121,17 @@ pub async fn dump_ui_hierarchy(serial: String) -> Result<UiDumpResult, String> {
     if xml_str.trim().is_empty() {
         return Ok(UiDumpResult {
             success: false,
-            screenshot_path: img_path_str,
+            screenshot_path: temp_img_path.to_string_lossy().to_string(),
+            data_url: Some(data_url_str),
             xml_content: String::new(),
-            error: Some("Retrieved XML hierarchy was empty".to_string()),
+            error: Some("Retrieved XML hierarchy was empty. Ensure phone screen is unlocked.".to_string()),
         });
     }
 
     Ok(UiDumpResult {
         success: true,
-        screenshot_path: img_path_str,
+        screenshot_path: temp_img_path.to_string_lossy().to_string(),
+        data_url: Some(data_url_str),
         xml_content: xml_str,
         error: None,
     })

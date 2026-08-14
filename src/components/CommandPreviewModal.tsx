@@ -17,15 +17,37 @@ export const CommandPreviewModal: React.FC<CommandPreviewModalProps> = ({
 
   if (!preview) return null;
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(preview.command);
+  const handleCopy = async () => {
+    const cleanCmd = preview.command.replace(/\r\n/g, "\n").trim();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(cleanCmd);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+        return;
+      } catch (e) {
+        console.error("Clipboard API error", e);
+      }
+    }
+    const textArea = document.createElement("textarea");
+    textArea.value = cleanCmd;
+    textArea.style.position = "fixed";
+    textArea.style.opacity = "0";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textArea);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleRun = () => {
     if (onRunInTerminal) {
-      onRunInTerminal(preview.command);
+      let cmd = preview.command.trim();
+      // Strip host ADB command prefix to run purely inside interactive device shell
+      cmd = cmd.replace(/^adb(\.exe)?\s+(-s\s+\S+\s+)?shell\s+/i, "");
+      onRunInTerminal(cmd);
       onClose();
     }
   };
@@ -44,7 +66,7 @@ export const CommandPreviewModal: React.FC<CommandPreviewModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-black/10 rounded transition-colors text-current"
+            className="p-1 hover:bg-black/10 rounded transition-colors text-current cursor-pointer"
             title="Close"
           >
             <X className="h-5 w-5" />
@@ -80,13 +102,15 @@ export const CommandPreviewModal: React.FC<CommandPreviewModalProps> = ({
             </div>
 
             <div className="relative group">
-              <pre className="p-3.5 pr-12 rounded bg-slate-900 text-emerald-400 font-mono text-xs overflow-x-auto leading-relaxed border-2 border-black whitespace-pre-wrap break-all shadow-[inset_0px_2px_4px_rgba(0,0,0,0.5)]">
-                <code>{preview.command}</code>
-              </pre>
+              <div className="overflow-x-auto custom-scrollbar p-3.5 pr-14 rounded bg-slate-900 border-2 border-black shadow-[inset_0px_2px_4px_rgba(0,0,0,0.5)]">
+                <pre className="text-emerald-400 font-mono text-xs leading-relaxed whitespace-pre inline-block min-w-full">
+                  <code>{preview.command}</code>
+                </pre>
+              </div>
 
               <button
                 onClick={handleCopy}
-                className="absolute top-2.5 right-2.5 neo-btn px-2 py-1 text-xs bg-slate-800 text-white border-slate-700 hover:bg-slate-700 flex items-center gap-1"
+                className="absolute top-2.5 right-2.5 neo-btn px-2 py-1 text-xs bg-slate-800 text-white border-slate-700 hover:bg-slate-700 flex items-center gap-1 cursor-pointer"
                 title="Copy Command"
               >
                 {copied ? (

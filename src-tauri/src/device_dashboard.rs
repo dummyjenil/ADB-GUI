@@ -5,6 +5,8 @@ use std::process::Command;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeviceDetails {
     pub serial: String,
+    pub hardware_serial: String,
+    pub adb_target: String,
     pub model: String,
     pub manufacturer: String,
     pub brand: String,
@@ -212,7 +214,27 @@ pub async fn get_device_full_details(serial: String) -> std::result::Result<Devi
         selinux_out
     };
 
+    let hardware_serial = {
+        let s = get_prop("ro.serialno", "");
+        if s.is_empty() || s == "Unknown" {
+            let s2 = get_prop("ro.boot.serialno", "");
+            if s2.is_empty() || s2 == "Unknown" {
+                if !serial.contains(':') {
+                    serial.clone()
+                } else {
+                    "Unknown / Protected by OEM".to_string()
+                }
+            } else {
+                s2
+            }
+        } else {
+            s
+        }
+    };
+
     Ok(DeviceDetails {
+        adb_target: serial.clone(),
+        hardware_serial,
         serial,
         model,
         manufacturer,

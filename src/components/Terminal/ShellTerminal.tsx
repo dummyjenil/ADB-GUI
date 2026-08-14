@@ -104,19 +104,26 @@ export const ShellTerminal: React.FC<ShellTerminalProps> = ({
   // External pending command handler
   useEffect(() => {
     if (pendingCommand && activeTab) {
-      invoke("write_terminal_input", {
-        sessionId: activeTab.sessionId,
-        input: pendingCommand + "\n",
-      }).catch(console.error);
+      let cleanCmd = pendingCommand.trim();
+      cleanCmd = cleanCmd.replace(/^adb(\.exe)?\s+(-s\s+\S+\s+)?shell\s+/i, "");
 
-      if (onClearPendingCommand) {
-        onClearPendingCommand();
-      }
+      const timer = setTimeout(() => {
+        invoke("write_terminal_input", {
+          sessionId: activeTab.sessionId,
+          input: cleanCmd + "\n",
+        }).catch(console.error);
 
-      const activeInst = xtermInstances.current[activeTabId];
-      if (activeInst) {
-        activeInst.term.focus();
-      }
+        if (onClearPendingCommand) {
+          onClearPendingCommand();
+        }
+
+        const activeInst = xtermInstances.current[activeTabId];
+        if (activeInst) {
+          activeInst.term.focus();
+        }
+      }, 150);
+
+      return () => clearTimeout(timer);
     }
   }, [pendingCommand, activeTab, activeTabId, onClearPendingCommand]);
 

@@ -29,6 +29,8 @@ import {
 
 export interface DeviceDetails {
   serial: string;
+  hardware_serial?: string;
+  adb_target?: string;
   model: string;
   manufacturer: string;
   brand: string;
@@ -193,31 +195,32 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({ serial }) => {
 
   const allPropertiesList = details
     ? [
-        { label: "Serial Number", value: details.serial, icon: <Radio className="h-4 w-4 text-emerald-400" /> },
-        { label: "Model", value: details.model, icon: <Smartphone className="h-4 w-4 text-amber-400" /> },
-        { label: "Manufacturer", value: details.manufacturer, icon: <Layers className="h-4 w-4 text-sky-400" /> },
-        { label: "Brand", value: details.brand, icon: <Smartphone className="h-4 w-4 text-purple-400" /> },
-        { label: "Device Name", value: details.device_name, icon: <Info className="h-4 w-4 text-indigo-400" /> },
-        { label: "Android Version", value: details.android_version, icon: <Smartphone className="h-4 w-4 text-emerald-400" /> },
-        { label: "SDK / API Level", value: details.sdk_level, icon: <Terminal className="h-4 w-4 text-rose-400" /> },
-        { label: "Build ID", value: details.build_id, icon: <Terminal className="h-4 w-4 text-teal-400" /> },
-        { label: "Build Fingerprint", value: details.build_fingerprint, icon: <Terminal className="h-4 w-4 text-slate-400" /> },
-        { label: "Security Patch Level", value: details.security_patch, icon: <ShieldCheck className="h-4 w-4 text-emerald-400" /> },
-        { label: "Bootloader State", value: details.bootloader_state, icon: <ShieldCheck className="h-4 w-4 text-amber-400" /> },
-        { label: "Build Type", value: details.build_type, icon: <Layers className="h-4 w-4 text-sky-400" /> },
-        { label: "CPU ABI", value: details.cpu_abi, icon: <Cpu className="h-4 w-4 text-rose-400" /> },
-        { label: "Supported ABIs", value: details.supported_abis, icon: <Cpu className="h-4 w-4 text-purple-400" /> },
-        { label: "Architecture", value: details.architecture, icon: <Cpu className="h-4 w-4 text-amber-400" /> },
-        { label: "Kernel Version", value: details.kernel_version, icon: <Terminal className="h-4 w-4 text-emerald-400" /> },
-        { label: "Hostname", value: details.hostname, icon: <Wifi className="h-4 w-4 text-cyan-400" /> },
-        { label: "Device Uptime", value: details.device_uptime, icon: <Clock className="h-4 w-4 text-amber-400" /> },
-        { label: "USB State", value: details.usb_state, icon: <Radio className="h-4 w-4 text-sky-400" /> },
-        { label: "ADB State", value: details.adb_state, icon: <Activity className="h-4 w-4 text-emerald-400" /> },
-        { label: "USB Debugging State", value: details.usb_debugging, icon: <Terminal className="h-4 w-4 text-teal-400" /> },
-        { label: "Wi-Fi Debugging State", value: details.wifi_debugging, icon: <Wifi className="h-4 w-4 text-emerald-400" /> },
-        { label: "Root Availability", value: details.root_availability, icon: <ShieldCheck className="h-4 w-4 text-rose-400" /> },
-        { label: "SELinux Status", value: details.selinux_status, icon: <ShieldCheck className="h-4 w-4 text-indigo-400" /> },
-      ]
+      { label: "Hardware Serial", value: details.hardware_serial || details.serial, icon: <Radio className="h-4 w-4 text-emerald-400" /> },
+      { label: "ADB Endpoint", value: details.adb_target || details.serial, icon: <Wifi className="h-4 w-4 text-cyan-400" /> },
+      { label: "Model", value: details.model, icon: <Smartphone className="h-4 w-4 text-amber-400" /> },
+      { label: "Manufacturer", value: details.manufacturer, icon: <Layers className="h-4 w-4 text-sky-400" /> },
+      { label: "Brand", value: details.brand, icon: <Smartphone className="h-4 w-4 text-purple-400" /> },
+      { label: "Device Name", value: details.device_name, icon: <Info className="h-4 w-4 text-indigo-400" /> },
+      { label: "Android Version", value: details.android_version, icon: <Smartphone className="h-4 w-4 text-emerald-400" /> },
+      { label: "SDK / API Level", value: details.sdk_level, icon: <Terminal className="h-4 w-4 text-rose-400" /> },
+      { label: "Build ID", value: details.build_id, icon: <Terminal className="h-4 w-4 text-teal-400" /> },
+      { label: "Build Fingerprint", value: details.build_fingerprint, icon: <Terminal className="h-4 w-4 text-slate-400" /> },
+      { label: "Security Patch Level", value: details.security_patch, icon: <ShieldCheck className="h-4 w-4 text-emerald-400" /> },
+      { label: "Bootloader State", value: details.bootloader_state, icon: <ShieldCheck className="h-4 w-4 text-amber-400" /> },
+      { label: "Build Type", value: details.build_type, icon: <Layers className="h-4 w-4 text-sky-400" /> },
+      { label: "CPU ABI", value: details.cpu_abi, icon: <Cpu className="h-4 w-4 text-rose-400" /> },
+      { label: "Supported ABIs", value: details.supported_abis, icon: <Cpu className="h-4 w-4 text-purple-400" /> },
+      { label: "Architecture", value: details.architecture, icon: <Cpu className="h-4 w-4 text-amber-400" /> },
+      { label: "Kernel Version", value: details.kernel_version, icon: <Terminal className="h-4 w-4 text-emerald-400" /> },
+      { label: "Hostname", value: details.hostname, icon: <Wifi className="h-4 w-4 text-cyan-400" /> },
+      { label: "Device Uptime", value: details.device_uptime, icon: <Clock className="h-4 w-4 text-amber-400" /> },
+      { label: "USB State", value: details.usb_state, icon: <Radio className="h-4 w-4 text-sky-400" /> },
+      { label: "ADB State", value: details.adb_state, icon: <Activity className="h-4 w-4 text-emerald-400" /> },
+      { label: "USB Debugging State", value: details.usb_debugging, icon: <Terminal className="h-4 w-4 text-teal-400" /> },
+      { label: "Wi-Fi Debugging State", value: details.wifi_debugging, icon: <Wifi className="h-4 w-4 text-emerald-400" /> },
+      { label: "Root Availability", value: details.root_availability, icon: <ShieldCheck className="h-4 w-4 text-rose-400" /> },
+      { label: "SELinux Status", value: details.selinux_status, icon: <ShieldCheck className="h-4 w-4 text-indigo-400" /> },
+    ]
     : [];
 
   const filteredProperties = allPropertiesList.filter(
@@ -274,11 +277,10 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({ serial }) => {
                       key={int}
                       type="button"
                       onClick={() => setRefreshIntervalMs(int)}
-                      className={`px-2 py-0.5 text-xs font-mono rounded transition-colors ${
-                        refreshIntervalMs === int
-                          ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)] font-bold neo-box-sm"
-                          : "text-[var(--neo-text-muted)] hover:bg-black/20"
-                      }`}
+                      className={`px-2 py-0.5 text-xs font-mono rounded transition-colors ${refreshIntervalMs === int
+                        ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)] font-bold neo-box-sm"
+                        : "text-[var(--neo-text-muted)] hover:bg-black/20"
+                        }`}
                     >
                       {int / 1000}s
                     </button>

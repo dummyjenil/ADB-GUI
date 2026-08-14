@@ -1,59 +1,34 @@
-PAIR PIN: kaa koi arth nahi hai vo nikaal do
+jitne bhi html select hai saare par Select component lagaa do
 
-Select or type manually below: ye vaale element ko sudhaare
+terinal sharing me sirf type karnaa hai execute nahi
 
-issme selectbox sudhaare jaisaa "import { Select, SelectOption } from "./ui/Select";
-" iss select component jaisaa banaao
+Recorded video file was empty or failed to pull. Ensure device screen was on during recording.
 
-SERIAL NUMBER
-192.168.1.4:41581
-issko sudhaaro ye serial number nahi lagtaa
+Screen recorder dhang se work nahi kar raha
 
-poore app me jaha jaha error aaye usska alert bhi dikhe app me like meraa phone abhi rotate key swikaar nahi kartaa to error aayi lekin kahi par bhi dikhaa nahi app me successful hi bataa rahe hai
+terminal me aisa karo ki koi bhi adb shell , adb -s IP shell etc kuchh bhi chalaaye to bhi vo accept karle
 
-run in terminal shell aaye to terminal me vo typed honaa chahiye abhi isska to koi arth hi nahi bantaa terminal me share karne se kuchh hotaa hi nahi
-
-terminal sharing me ye vaala hissa hatt jaana chahiye tabhi command valid hogi "adb -s 192.168.1.4:41581 shell " ye hat kar hi kuchh ho
-
-kai baar "COMMAND EXECUTION" preview me box se badaa text hotaa hai to sahi se dikhtaa hai nahi ussme bhi horizontal scrolling rakho jisase poora command dikh sake
-
-ADVANCED MULTI-STREAM VOLUME CONTROLS ye kaam hi nahi kar raha hai issme sirf media volume hi kam ho rahi hai aur mute bi kaam nahi kar raha
+Mute me dikkat hai mismatch ho gayaa hai logic
 
 command copy me kuchh problem haiisska text web me accept nahi hotaa jab ki text editor me ho jaata hai
 
-CUSTOM NOTIFICATION / TOAST SENDER
+Notification remove hi nahi hotaa , naa hi usspar click hotaa hai
 
-issme sirf notification kaa hi rakho koi toast nahi type focus etc nikaal do kyoki isska koi meaning nahi hai notification me
+CUSTOM NOTIFICATION SENDER :- notification aate hi nahi hai
 
 CROSS-DEVICE CLIPBOARD SYNC
  ye kaam nahi kar raha mere phone me
 
- SCREENSHOT TOOL
- issme koi image hi nahi dikh rahi
-
- SCREEN RECORDER
- bhi kaam nahi kar rha
-
- aur UI inspect bhi screenshot naa hone ki vajah se kaam nahi kar raha
-
- Dump present screen me phone band ho to bhi ye koi error nahi detaa
+ aur UI inspect me kuchh visualization fit nahi ho rahaa hai box chhota hai screenshot ke saamne
 
  Dump present me jo side me tree viewer hai ussko sudhaar ne ki jaroorat hai
-
- MOBILE NOTIFICATION MIRRORING HUB
-
-issme notification click aur right yaa left slide karne par notification mobile aur iss notification tab se dur ho jaaye aisaa karo aur jo naa ho ussme error de de ki ye to static hai
-
-CALL LOGS & DIALER HUB
-
-issme call ending kaa option kaam nahi kar raha
 
 NO CALL LOGS FOUND
 NO SMS MESSAGES FOUND
 NO CONTACTS FOUND
  ye aa raha hai
 
- ye SMS dispatch kar raha hai jabki mujhe send hi kar denaa hai jaisaa mobile app me hotaa hai
+DIRECT SMS COMPOSER ye kaam hi nahi kar raha
 
  ADVANCED PM (PACKAGE MANAGER) SHELL TOOL
  isska output kahi par nahi dikhtaa

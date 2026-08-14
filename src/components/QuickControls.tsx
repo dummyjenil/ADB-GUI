@@ -10,6 +10,7 @@ import {
   Sparkles,
   Terminal,
   CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { CommandPreview } from "../types/terminal";
 import { QUICK_ACTIONS_REGISTRY } from "./QuickControls/registry";
@@ -24,15 +25,16 @@ interface QuickControlsProps {
 }
 
 export const QuickControls: React.FC<QuickControlsProps> = ({ activeDevice, onViewCommand }) => {
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [openUrlOpen, setOpenUrlOpen] = useState(false);
   const [customNotifOpen, setCustomNotifOpen] = useState(false);
   const [volumeModalOpen, setVolumeModalOpen] = useState(false);
   const [currentRotation, setCurrentRotation] = useState<"auto" | "portrait" | "landscape">("auto");
 
-  const showToast = (msg: string) => {
-    setFeedback(msg);
-    setTimeout(() => setFeedback(null), 2500);
+  const showToast = (msg: string, type: "success" | "error" = "success") => {
+    const isError = type === "error" || msg.toLowerCase().startsWith("error") || msg.toLowerCase().includes("failed") || msg.toLowerCase().includes("rejected");
+    setFeedback({ text: msg, type: isError ? "error" : "success" });
+    setTimeout(() => setFeedback(null), isError ? 4000 : 2500);
   };
 
   const handleActionClick = async (action: QuickAction) => {
@@ -193,9 +195,19 @@ export const QuickControls: React.FC<QuickControlsProps> = ({ activeDevice, onVi
 
       {/* Floating Status Notification Toast */}
       {feedback && (
-        <div className="fixed bottom-6 right-6 neo-box px-4 py-2.5 bg-[var(--neo-primary)] text-[var(--neo-primary-text)] text-xs font-black flex items-center gap-2 animate-neo-slide z-50 shadow-[4px_4px_0px_0px_var(--neo-shadow)]">
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
-          <span>{feedback}</span>
+        <div
+          className={`fixed bottom-6 right-6 neo-box px-4 py-2.5 text-xs font-black flex items-center gap-2 animate-neo-slide z-50 shadow-[4px_4px_0px_0px_var(--neo-shadow)] ${
+            feedback.type === "error"
+              ? "bg-rose-500 text-white border-2 border-black"
+              : "bg-[var(--neo-primary)] text-[var(--neo-primary-text)] border-2 border-black"
+          }`}
+        >
+          {feedback.type === "error" ? (
+            <AlertCircle className="h-4 w-4 shrink-0 text-white" />
+          ) : (
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+          )}
+          <span className="break-words max-w-sm">{feedback.text}</span>
         </div>
       )}
 

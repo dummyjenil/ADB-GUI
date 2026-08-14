@@ -433,16 +433,35 @@ pub async fn send_text_input(serial: String, text: String) -> std::result::Resul
 // Cross-Device Clipboard: Push text to phone clipboard
 #[tauri::command]
 pub async fn set_device_clipboard(serial: String, text: String) -> std::result::Result<String, String> {
-    let output = Command::new("adb")
+    // 1. Try cmd clipboard set
+    let cmd_out = Command::new("adb")
         .args(["-s", &serial, "shell", "cmd", "clipboard", "set", &text])
         .output();
 
-    if let Ok(out) = output {
+    if let Ok(out) = cmd_out {
         if out.status.success() {
-            return Ok("Clipboard pushed to phone".to_string());
+            let stderr_str = String::from_utf8_lossy(&out.stderr);
+            if !stderr_str.contains("SecurityException") && !stderr_str.contains("Permission Denial") {
+                return Ok("Clipboard pushed to device successfully".to_string());
+            }
         }
     }
 
+    // 2. Try service call clipboard (Android IPC)
+    let service_out = Command::new("adb")
+        .args(["-s", &serial, "shell", "service", "call", "clipboard", "2", "i32", "1", "i32", "0", "s16", &text])
+        .output();
+
+    if let Ok(out) = service_out {
+        if out.status.success() {
+            let out_str = String::from_utf8_lossy(&out.stdout);
+            if out_str.contains("Result: Parcel") {
+                return Ok("Clipboard updated via system service".to_string());
+            }
+        }
+    }
+
+    // 3. Fallback to direct input text
     send_text_input(serial, text).await
 }
 
@@ -452,13 +471,21 @@ pub async fn get_device_clipboard(serial: String) -> std::result::Result<String,
     let output = Command::new("adb")
         .args(["-s", &serial, "shell", "cmd", "clipboard", "get"])
         .output()
-        .map_err(|e| format!("Failed to get clipboard: {}", e))?;
+        .map_err(|e| format!("Failed to run clipboard read: {}", e))?;
 
-    let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if !text.is_empty() {
-        Ok(text)
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+
+    if !stdout.is_empty() && !stdout.starts_with("SecurityException") && !stdout.starts_with("Error:") {
+        Ok(stdout)
+    } else if !stderr.is_empty() {
+        if stderr.contains("SecurityException") || stderr.contains("Permission Denial") {
+            Err("Android restricted background clipboard reading on this device (requires active app focus)".to_string())
+        } else {
+            Err(stderr)
+        }
     } else {
-        Ok("No text on device clipboard or permission restricted".to_string())
+        Ok("Clipboard is currently empty on device".to_string())
     }
 }
 
@@ -528,49 +555,71 @@ pub async fn open_url_on_device(serial: String, url: String) -> std::result::Res
 // Set device screen orientation
 #[tauri::command]
 pub async fn set_device_orientation(serial: String, orientation: String) -> std::result::Result<String, String> {
+    let check_cmd_result = |out: std::io::Result<std::process::Output>| -> std::result::Result<(), String> {
+        match out {
+            Ok(o) => {
+                let stderr = String::from_utf8_lossy(&o.stderr).trim().to_string();
+                let stdout = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                if !o.status.success() || stderr.contains("SecurityException") || stdout.contains("SecurityException") || stderr.contains("Permission denial") {
+                    let err = if !stderr.is_empty() { stderr } else { stdout };
+                    return Err(format!("Device rejected orientation: {}", err));
+                }
+                Ok(())
+            }
+            Err(e) => Err(format!("ADB execution failed: {}", e)),
+        }
+    };
+
     match orientation.as_str() {
         "auto" => {
-            let _ = Command::new("adb")
+            let res = Command::new("adb")
                 .args(["-s", &serial, "shell", "settings", "put", "system", "accelerometer_rotation", "1"])
                 .output();
+            check_cmd_result(res)?;
             Ok("Auto-rotation enabled".to_string())
         }
         "portrait" => {
-            let _ = Command::new("adb")
+            let res1 = Command::new("adb")
                 .args(["-s", &serial, "shell", "settings", "put", "system", "accelerometer_rotation", "0"])
                 .output();
-            let _ = Command::new("adb")
+            check_cmd_result(res1)?;
+            let res2 = Command::new("adb")
                 .args(["-s", &serial, "shell", "settings", "put", "system", "user_rotation", "0"])
                 .output();
+            check_cmd_result(res2)?;
             Ok("Set orientation to Portrait".to_string())
         }
         "landscape" => {
-            let _ = Command::new("adb")
+            let res1 = Command::new("adb")
                 .args(["-s", &serial, "shell", "settings", "put", "system", "accelerometer_rotation", "0"])
                 .output();
-            let _ = Command::new("adb")
+            check_cmd_result(res1)?;
+            let res2 = Command::new("adb")
                 .args(["-s", &serial, "shell", "settings", "put", "system", "user_rotation", "1"])
                 .output();
+            check_cmd_result(res2)?;
             Ok("Set orientation to Landscape".to_string())
         }
         "reverse_landscape" => {
-            let _ = Command::new("adb")
+            let res1 = Command::new("adb")
                 .args(["-s", &serial, "shell", "settings", "put", "system", "accelerometer_rotation", "0"])
                 .output();
-            let _ = Command::new("adb")
+            check_cmd_result(res1)?;
+            let res2 = Command::new("adb")
                 .args(["-s", &serial, "shell", "settings", "put", "system", "user_rotation", "3"])
                 .output();
+            check_cmd_result(res2)?;
             Ok("Set orientation to Reverse Landscape".to_string())
         }
-        _ => Err("Invalid orientation mode".to_string()),
+        _ => Err("Invalid orientation mode specified".to_string()),
     }
 }
 
 // Volume controller helper
 #[tauri::command]
 pub async fn adjust_volume(serial: String, stream_type: String, direction: String) -> std::result::Result<String, String> {
-    // direction can be "raise", "lower", "same", "mute", "unmute"
-    // stream_type: "STREAM_MUSIC" (3), "STREAM_RING" (2), "STREAM_ALARM" (4), "STREAM_VOICE_CALL" (0)
+    // direction can be "up" / "raise", "down" / "lower", "mute", "unmute"
+    // stream_type: "music" (3), "ring" (2), "call" (0), "alarm" (4), "notification" (5)
     let stream_id = match stream_type.as_str() {
         "call" => "0",
         "ring" => "2",
@@ -580,31 +629,62 @@ pub async fn adjust_volume(serial: String, stream_type: String, direction: Strin
         _ => "3",
     };
 
-    let dir_val = match direction.as_str() {
-        "up" | "raise" => "1",
-        "down" | "lower" => "-1",
-        "mute" => "-100",
-        "unmute" => "100",
-        _ => "1",
+    let adj_arg = match direction.as_str() {
+        "up" | "raise" => "raise",
+        "down" | "lower" => "lower",
+        "mute" => "mute",
+        "unmute" => "unmute",
+        _ => "raise",
     };
 
-    let output = Command::new("adb")
-        .args(["-s", &serial, "shell", "media", "volume", "--stream", stream_id, "--set", dir_val])
+    // 1. Try cmd media_session volume --stream <id> --adj <raise|lower|mute|unmute>
+    let output1 = Command::new("adb")
+        .args(["-s", &serial, "shell", "cmd", "media_session", "volume", "--stream", stream_id, "--adj", adj_arg, "--show"])
         .output();
 
-    if let Ok(out) = output {
+    if let Ok(out) = output1 {
         if out.status.success() {
-            return Ok(format!("Volume adjusted for stream {}", stream_type));
+            let stderr_str = String::from_utf8_lossy(&out.stderr);
+            if !stderr_str.contains("Error") && !stderr_str.contains("SecurityException") {
+                return Ok(format!("Adjusted {} volume: {}", stream_type, direction));
+            }
         }
     }
 
-    // Fallback to standard keyevent if media volume command fails or older Android
-    let keycode = if direction == "up" || direction == "raise" { "24" } else { "25" };
-    let _ = Command::new("adb")
-        .args(["-s", &serial, "shell", "input", "keyevent", keycode])
+    // 2. Try media volume --stream <id> --adj <adj>
+    let output2 = Command::new("adb")
+        .args(["-s", &serial, "shell", "media", "volume", "--stream", stream_id, "--adj", adj_arg])
         .output();
 
-    Ok(format!("Triggered volume key {}", direction))
+    if let Ok(out) = output2 {
+        if out.status.success() {
+            return Ok(format!("Adjusted {} volume: {}", stream_type, direction));
+        }
+    }
+
+    // 3. Fallback to keyevent for mute / volume
+    if direction == "mute" || direction == "unmute" {
+        let key_out = Command::new("adb")
+            .args(["-s", &serial, "shell", "input", "keyevent", "164"]) // KEYCODE_VOLUME_MUTE
+            .output();
+        if let Ok(k_out) = key_out {
+            if k_out.status.success() {
+                return Ok("Toggled device mute state".to_string());
+            }
+        }
+    } else {
+        let keycode = if direction == "up" || direction == "raise" { "24" } else { "25" };
+        let key_out = Command::new("adb")
+            .args(["-s", &serial, "shell", "input", "keyevent", keycode])
+            .output();
+        if let Ok(k_out) = key_out {
+            if k_out.status.success() {
+                return Ok(format!("Triggered volume key {}", direction));
+            }
+        }
+    }
+
+    Err(format!("Failed to adjust {} volume on device", stream_type))
 }
 
 // Send swipe gesture

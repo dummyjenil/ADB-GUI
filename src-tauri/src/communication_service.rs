@@ -50,6 +50,9 @@ fn run_adb_shell(serial: &str, args: &[&str]) -> Result<String, String> {
 /// Fetch device call logs via content provider query
 #[tauri::command]
 pub async fn get_call_logs(serial: String) -> Result<Vec<CallLogItem>, String> {
+    // Attempt granting permission to shell if needed
+    let _ = run_adb_shell(&serial, &["pm", "grant", "com.android.shell", "android.permission.READ_CALL_LOG"]);
+
     let raw = run_adb_shell(
         &serial,
         &[
@@ -62,10 +65,24 @@ pub async fn get_call_logs(serial: String) -> Result<Vec<CallLogItem>, String> {
             "--sort",
             "date DESC",
         ],
-    )?;
+    );
+
+    let raw_text = match raw {
+        Ok(t) => t,
+        Err(e) => {
+            if e.contains("SecurityException") || e.contains("Permission Denial") {
+                return Err("Access to Call Logs is restricted by Android security. Grant permission with: adb shell pm grant com.android.shell android.permission.READ_CALL_LOG".to_string());
+            }
+            return Err(e);
+        }
+    };
+
+    if raw_text.contains("SecurityException") || raw_text.contains("Permission Denial") {
+        return Err("Access to Call Logs is restricted by Android security. Grant permission with: adb shell pm grant com.android.shell android.permission.READ_CALL_LOG".to_string());
+    }
 
     let mut list = Vec::new();
-    for line in raw.lines() {
+    for line in raw_text.lines() {
         let trimmed = line.trim();
         if !trimmed.starts_with("Row:") {
             continue;
@@ -157,17 +174,24 @@ pub async fn trigger_call(serial: String, number: String) -> Result<String, Stri
 /// End ongoing active phone call
 #[tauri::command]
 pub async fn end_call(serial: String) -> Result<String, String> {
-    let res = run_adb_shell(&serial, &["telecom", "end-call"]);
-    if res.is_ok() {
-        return Ok("Call ended successfully".to_string());
-    }
-    run_adb_shell(&serial, &["input", "keyevent", "6"])?;
-    Ok("Sent ENDCALL keyevent".to_string())
+    // 1. Try telecom end-call
+    let _ = run_adb_shell(&serial, &["telecom", "end-call"]);
+
+    // 2. Try KEYCODE_ENDCALL (keycode 6)
+    let _ = run_adb_shell(&serial, &["input", "keyevent", "6"]);
+
+    // 3. Try service call phone (endCall IPC)
+    let _ = run_adb_shell(&serial, &["service", "call", "phone", "5"]);
+
+    Ok("Call termination command dispatched to device".to_string())
 }
 
 /// Fetch SMS messages via content provider
 #[tauri::command]
 pub async fn get_sms_list(serial: String) -> Result<Vec<SmsItem>, String> {
+    // Attempt granting permission to shell
+    let _ = run_adb_shell(&serial, &["pm", "grant", "com.android.shell", "android.permission.READ_SMS"]);
+
     let raw = run_adb_shell(
         &serial,
         &[
@@ -180,10 +204,24 @@ pub async fn get_sms_list(serial: String) -> Result<Vec<SmsItem>, String> {
             "--sort",
             "date DESC",
         ],
-    )?;
+    );
+
+    let raw_text = match raw {
+        Ok(t) => t,
+        Err(e) => {
+            if e.contains("SecurityException") || e.contains("Permission Denial") {
+                return Err("Access to SMS is restricted by Android security. Grant permission with: adb shell pm grant com.android.shell android.permission.READ_SMS".to_string());
+            }
+            return Err(e);
+        }
+    };
+
+    if raw_text.contains("SecurityException") || raw_text.contains("Permission Denial") {
+        return Err("Access to SMS is restricted by Android security. Grant permission with: adb shell pm grant com.android.shell android.permission.READ_SMS".to_string());
+    }
 
     let mut list = Vec::new();
-    for line in raw.lines() {
+    for line in raw_text.lines() {
         let trimmed = line.trim();
         if !trimmed.starts_with("Row:") {
             continue;
@@ -252,10 +290,70 @@ pub async fn get_sms_list(serial: String) -> Result<Vec<SmsItem>, String> {
     Ok(list)
 }
 
-/// Send SMS message to target number
+/// Send SMS message directly to target number via cellular isms service or sendto intent
 #[tauri::command]
 pub async fn send_sms(serial: String, number: String, body: String) -> Result<String, String> {
     let clean_number = number.trim().replace(' ', "");
+
+    // 1. Try sending directly via cellular isms service (direct background cellular dispatch)
+    let isms_res = run_adb_shell(
+        &serial,
+        &[
+            "service",
+            "call",
+            "isms",
+            "5",
+            "s16",
+            "com.android.mms",
+            "s16",
+            &clean_number,
+            "s16",
+            "null",
+            "s16",
+            &body,
+            "s16",
+            "null",
+            "s16",
+            "null",
+        ],
+    );
+
+    if let Ok(ref res) = isms_res {
+        if res.contains("Result: Parcel") {
+            return Ok(format!("SMS dispatched directly to cellular network for {}", clean_number));
+        }
+    }
+
+    // 2. Try isms code 7 (newer Android)
+    let isms_res2 = run_adb_shell(
+        &serial,
+        &[
+            "service",
+            "call",
+            "isms",
+            "7",
+            "s16",
+            "com.android.mms",
+            "s16",
+            &clean_number,
+            "s16",
+            "null",
+            "s16",
+            &body,
+            "s16",
+            "null",
+            "s16",
+            "null",
+        ],
+    );
+
+    if let Ok(ref res2) = isms_res2 {
+        if res2.contains("Result: Parcel") {
+            return Ok(format!("SMS dispatched directly to cellular network for {}", clean_number));
+        }
+    }
+
+    // 3. Fallback to sending via messaging intent
     let uri = format!("smsto:{}", clean_number);
     let out = run_adb_shell(
         &serial,
@@ -280,22 +378,56 @@ pub async fn send_sms(serial: String, number: String, body: String) -> Result<St
 /// Fetch contacts from contacts provider
 #[tauri::command]
 pub async fn get_contacts_list(serial: String) -> Result<Vec<ContactItem>, String> {
-    let raw = run_adb_shell(
+    // Attempt granting permission to shell
+    let _ = run_adb_shell(&serial, &["pm", "grant", "com.android.shell", "android.permission.READ_CONTACTS"]);
+
+    // Try primary URI
+    let mut raw = run_adb_shell(
         &serial,
         &[
             "content",
             "query",
             "--uri",
-            "content://contacts/phones/",
+            "content://com.android.contacts/data/phones",
             "--projection",
-            "_id:display_name:number",
+            "_id:display_name:data1",
             "--sort",
             "display_name ASC",
         ],
-    )?;
+    );
+
+    if raw.is_err() || raw.as_ref().map(|r| r.is_empty()).unwrap_or(true) {
+        raw = run_adb_shell(
+            &serial,
+            &[
+                "content",
+                "query",
+                "--uri",
+                "content://contacts/phones/",
+                "--projection",
+                "_id:display_name:number",
+                "--sort",
+                "display_name ASC",
+            ],
+        );
+    }
+
+    let raw_text = match raw {
+        Ok(t) => t,
+        Err(e) => {
+            if e.contains("SecurityException") || e.contains("Permission Denial") {
+                return Err("Access to Contacts is restricted by Android security. Grant permission with: adb shell pm grant com.android.shell android.permission.READ_CONTACTS".to_string());
+            }
+            return Err(e);
+        }
+    };
+
+    if raw_text.contains("SecurityException") || raw_text.contains("Permission Denial") {
+        return Err("Access to Contacts is restricted by Android security. Grant permission with: adb shell pm grant com.android.shell android.permission.READ_CONTACTS".to_string());
+    }
 
     let mut list = Vec::new();
-    for line in raw.lines() {
+    for line in raw_text.lines() {
         let trimmed = line.trim();
         if !trimmed.starts_with("Row:") {
             continue;
@@ -320,7 +452,7 @@ pub async fn get_contacts_list(serial: String) -> Result<Vec<ContactItem>, Strin
                 match key {
                     "_id" => id = val.to_string(),
                     "display_name" => name = if val == "NULL" || val == "null" { "".to_string() } else { val.to_string() },
-                    "number" => number = if val == "NULL" || val == "null" { "".to_string() } else { val.to_string() },
+                    "data1" | "number" => number = if val == "NULL" || val == "null" { "".to_string() } else { val.to_string() },
                     _ => {}
                 }
             }

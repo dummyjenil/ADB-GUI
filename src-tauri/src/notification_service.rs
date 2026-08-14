@@ -53,6 +53,7 @@ fn parse_dumpsys_notifications(raw: &str) -> Vec<NotificationItem> {
     let mut current_channel = String::new();
     let mut current_post_time = String::new();
     let mut current_ticker = String::new();
+    let mut current_is_clearable = true;
     let mut is_record = false;
 
     for line in lines {
@@ -85,6 +86,7 @@ fn parse_dumpsys_notifications(raw: &str) -> Vec<NotificationItem> {
                     &current_sub_text,
                     &current_channel,
                     &current_post_time,
+                    current_is_clearable,
                 ));
             }
 
@@ -99,6 +101,7 @@ fn parse_dumpsys_notifications(raw: &str) -> Vec<NotificationItem> {
             current_channel = String::new();
             current_post_time = String::new();
             current_ticker = String::new();
+            current_is_clearable = true;
 
             if let Some(pkg_idx) = trimmed.find("pkg=") {
                 let rest = &trimmed[pkg_idx + 4..];
@@ -108,11 +111,22 @@ fn parse_dumpsys_notifications(raw: &str) -> Vec<NotificationItem> {
                 let rest = &trimmed[id_idx + 3..];
                 current_id = rest.split_whitespace().next().unwrap_or("").to_string();
             }
+            if trimmed.contains("flags=") {
+                current_is_clearable = check_is_clearable(trimmed);
+            }
             continue;
         }
 
         if !is_record {
             continue;
+        }
+
+        if trimmed.contains("FLAG_ONGOING_EVENT") || trimmed.contains("FLAG_NO_CLEAR") || trimmed.contains("FLAG_FOREGROUND_SERVICE") || trimmed.contains("ongoing=true") || trimmed.contains("isClearable=false") {
+            current_is_clearable = false;
+        } else if trimmed.contains("flags=") {
+            if !check_is_clearable(trimmed) {
+                current_is_clearable = false;
+            }
         }
 
         if trimmed.starts_with("pkg=") && current_pkg.is_empty() {
@@ -179,6 +193,7 @@ fn parse_dumpsys_notifications(raw: &str) -> Vec<NotificationItem> {
             &current_sub_text,
             &current_channel,
             &current_post_time,
+            current_is_clearable,
         ));
     }
 
@@ -191,6 +206,23 @@ fn parse_dumpsys_notifications(raw: &str) -> Vec<NotificationItem> {
     }
 
     unique_items
+}
+
+fn check_is_clearable(line: &str) -> bool {
+    if line.contains("FLAG_ONGOING_EVENT") || line.contains("FLAG_NO_CLEAR") || line.contains("FLAG_FOREGROUND_SERVICE") || line.contains("ongoing=true") || line.contains("isClearable=false") {
+        return false;
+    }
+    if let Some(idx) = line.find("flags=") {
+        let f_part = &line[idx + 6..].split_whitespace().next().unwrap_or("");
+        let hex_val = f_part.trim_start_matches("0x").trim_matches(',');
+        if let Ok(num) = u32::from_str_radix(hex_val, 16) {
+            // FLAG_ONGOING_EVENT (0x2) | FLAG_NO_CLEAR (0x20) | FLAG_FOREGROUND_SERVICE (0x40)
+            if (num & 0x62) != 0 {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 /// Dynamic field extraction distinguishing type descriptors (`android.title=String`) from actual values
@@ -238,6 +270,7 @@ fn build_notification_item(
     sub: &str,
     channel: &str,
     post_time: &str,
+    is_clearable: bool,
 ) -> NotificationItem {
     let raw_name = pkg.split('.').last().unwrap_or(pkg);
     let app_name = if raw_name.is_empty() {
@@ -259,6 +292,15 @@ fn build_notification_item(
         sub_text: sub.to_string(),
         post_time: if post_time.is_empty() { "Just now".to_string() } else { post_time.to_string() },
         channel_id: channel.to_string(),
-        is_clearable: true,
+        is_clearable,
     }
+}
+
+/// Dismiss / cancel a notification on the device
+#[tauri::command]
+pub async fn dismiss_notification(serial: String, package_name: String, id: String) -> Result<String, String> {
+    let _ = Command::new("adb")
+        .args(["-s", &serial, "shell", "cmd", "notification", "cancel", &package_name, &id])
+        .output();
+    Ok("Notification dismissed".to_string())
 }

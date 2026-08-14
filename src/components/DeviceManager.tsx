@@ -8,6 +8,7 @@ import { Card } from "./ui/Card";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
 import { Badge } from "./ui/Badge";
+import { Select } from "./ui/Select";
 import {
   Smartphone,
   Wifi,
@@ -318,7 +319,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
             {/* Clean QR Code View */}
             <div className="flex flex-col items-center justify-center p-5 neo-box bg-white text-black text-center">
-              <div className="p-3 bg-white rounded-xl mb-3">
+              <div className="p-3 bg-white rounded-xl">
                 <QRCode
                   value={qrPayload}
                   size={180}
@@ -326,10 +327,6 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
                   fgColor="#000000"
                   qrStyle="squares"
                 />
-              </div>
-              <div className="flex items-center gap-2 px-4 py-1.5 rounded-lg border-2 border-black bg-[var(--neo-primary)] text-black font-mono font-bold text-xs">
-                <span>PAIR PIN:</span>
-                <span className="text-sm tracking-wider font-extrabold">{pairingPin}</span>
               </div>
             </div>
 
@@ -385,44 +382,42 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
 
             {/* Discovered Device Selector Box */}
             {discoveredServices.filter((s) => s.service_type === "pairing").length > 0 && (
-              <div className="p-3 neo-box-sm bg-emerald-500/10 border-2 border-emerald-500/30 space-y-1.5">
+              <div className="p-3 neo-box-sm bg-emerald-500/10 border-2 border-emerald-500/30 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-black uppercase text-emerald-400 flex items-center gap-1.5">
                     <Radio className="h-3 w-3 animate-pulse" />
-                    Discovered Pairing Target:
+                    Discovered Pairing Target
                   </span>
-                  <span className="text-[10px] text-[var(--neo-text-muted)]">Select or type manually below</span>
+                  <span className="text-[10px] text-[var(--neo-text-muted)]">Select target or type IP/Port below</span>
                 </div>
-                <select
-                  className="neo-input w-full py-1.5 px-2.5 text-xs font-mono font-bold bg-black/40 text-emerald-300 border-emerald-500/40 cursor-pointer"
+                <Select
+                  className="w-full"
+                  variant="card"
+                  placeholder="-- Choose Discovered Device --"
                   value={
                     discoveredServices
                       .filter((s) => s.service_type === "pairing")
-                      .some((s) => s.ip === pairIp && s.port.toString() === pairPort)
-                      ? `${pairIp}:${pairPort}`
-                      : ""
+                      .find((s) => s.ip === pairIp && s.port.toString() === pairPort)
+                      ?.full_address || ""
                   }
-                  onChange={(e) => {
+                  onChange={(val) => {
                     const selected = discoveredServices
                       .filter((s) => s.service_type === "pairing")
-                      .find((s) => s.full_address === e.target.value);
+                      .find((s) => s.full_address === val);
                     if (selected) {
                       setPairIp(selected.ip);
                       setPairPort(selected.port.toString());
                     }
                   }}
-                >
-                  <option value="">
-                    -- Choose Discovered Device ({discoveredServices.filter((s) => s.service_type === "pairing").length} found) --
-                  </option>
-                  {discoveredServices
+                  options={discoveredServices
                     .filter((s) => s.service_type === "pairing")
-                    .map((s, idx) => (
-                      <option key={idx} value={s.full_address}>
-                        {s.full_address} ({s.name.split(".")[0]})
-                      </option>
-                    ))}
-                </select>
+                    .map((s) => ({
+                      value: s.full_address,
+                      label: s.full_address,
+                      sublabel: s.name.split(".")[0],
+                      icon: <Radio className="h-3.5 w-3.5 text-emerald-400" />,
+                    }))}
+                />
               </div>
             )}
 

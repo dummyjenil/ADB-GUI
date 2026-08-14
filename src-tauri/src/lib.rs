@@ -106,6 +106,7 @@ pub fn run() {
             save_media_file,
             dump_ui_hierarchy,
             get_device_notifications,
+            dismiss_notification,
             get_call_logs,
             trigger_call,
             end_call,

@@ -304,7 +304,7 @@ export const QUICK_ACTIONS_REGISTRY: QuickAction[] = [
   {
     id: "custom_notification_dialog",
     title: "Custom Notification",
-    subtitle: "Broadcast Test Alert / Toast",
+    subtitle: "Broadcast Custom Push Alert",
     category: "shortcuts",
     type: "dialog",
     icon: <Bell className="h-6 w-6 text-amber-400" />,

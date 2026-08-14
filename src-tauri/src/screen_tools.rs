@@ -11,6 +11,7 @@ static RECORDING_ACTIVE: Mutex<bool> = Mutex::new(false);
 pub struct ScreenshotResult {
     pub success: bool,
     pub file_path: String,
+    pub data_url: Option<String>,
     pub timestamp: String,
     pub error: Option<String>,
 }
@@ -21,6 +22,30 @@ pub struct ScreenRecordResult {
     pub file_path: String,
     pub timestamp: String,
     pub error: Option<String>,
+}
+
+fn to_base64(bytes: &[u8]) -> String {
+    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity((bytes.len() + 2) / 3 * 4);
+    for chunk in bytes.chunks(3) {
+        let b0 = chunk[0];
+        let b1 = if chunk.len() > 1 { chunk[1] } else { 0 };
+        let b2 = if chunk.len() > 2 { chunk[2] } else { 0 };
+
+        out.push(CHARSET[(b0 >> 2) as usize] as char);
+        out.push(CHARSET[(((b0 & 0x03) << 4) | (b1 >> 4)) as usize] as char);
+        if chunk.len() > 1 {
+            out.push(CHARSET[(((b1 & 0x0f) << 2) | (b2 >> 6)) as usize] as char);
+        } else {
+            out.push('=');
+        }
+        if chunk.len() > 2 {
+            out.push(CHARSET[(b2 & 0x3f) as usize] as char);
+        } else {
+            out.push('=');
+        }
+    }
+    out
 }
 
 fn get_temp_dir() -> std::path::PathBuf {
@@ -46,18 +71,21 @@ pub async fn take_screenshot(serial: String) -> Result<ScreenshotResult, String>
         return Ok(ScreenshotResult {
             success: false,
             file_path: String::new(),
+            data_url: None,
             timestamp: ts,
-            error: Some(if err_msg.is_empty() { "Failed to capture screenshot".to_string() } else { err_msg.to_string() }),
+            error: Some(if err_msg.is_empty() { "Failed to capture screenshot (screen might be off or protected)".to_string() } else { err_msg.to_string() }),
         });
     }
 
-    // Save PNG bytes directly to temp disk file (Zero Base64 memory overhead)
-    fs::write(&temp_file, &output.stdout)
-        .map_err(|e| format!("Failed to write screenshot to temp disk file: {}", e))?;
+    // Save PNG bytes to temp disk file
+    let _ = fs::write(&temp_file, &output.stdout);
+
+    let data_url = format!("data:image/png;base64,{}", to_base64(&output.stdout));
 
     Ok(ScreenshotResult {
         success: true,
         file_path: temp_file.to_string_lossy().to_string(),
+        data_url: Some(data_url),
         timestamp: ts,
         error: None,
     })
@@ -113,9 +141,9 @@ pub async fn stop_screen_recording(serial: String) -> Result<ScreenRecordResult,
         *lock = false;
     }
 
-    // Send SIGINT to screenrecord process on device so it writes MP4 header cleanly
+    // Send SIGINT / SIGTERM to screenrecord process across all Android shell variants
     let _ = Command::new("adb")
-        .args(["-s", &serial, "shell", "pkill", "-INT", "screenrecord"])
+        .args(["-s", &serial, "shell", "killall -2 screenrecord 2>/dev/null || pkill -2 screenrecord 2>/dev/null || kill -2 $(pidof screenrecord) 2>/dev/null || true"])
         .output();
 
     // Give screenrecord 1.5 seconds to finalize writing MP4 container
@@ -124,7 +152,7 @@ pub async fn stop_screen_recording(serial: String) -> Result<ScreenRecordResult,
     let ts = chrono_now();
     let temp_file = get_temp_dir().join(format!("recording_{}_{}.mp4", serial.replace(':', "_"), ts));
 
-    // Pull recording directly to local disk file (Zero Base64 memory overhead)
+    // Pull recording directly to local disk file
     let pull_output = Command::new("adb")
         .args(["-s", &serial, "pull", "/sdcard/adb_gui_record.mp4", &temp_file.to_string_lossy()])
         .output()
@@ -140,7 +168,7 @@ pub async fn stop_screen_recording(serial: String) -> Result<ScreenRecordResult,
             success: false,
             file_path: String::new(),
             timestamp: ts,
-            error: Some("Recorded video file was empty or failed to pull".to_string()),
+            error: Some("Recorded video file was empty or failed to pull. Ensure device screen was on during recording.".to_string()),
         });
     }
 

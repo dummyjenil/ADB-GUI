@@ -23,38 +23,30 @@ export const CustomNotificationModal: React.FC<CustomNotificationModalProps> = (
 }) => {
   const [title, setTitle] = useState("ADB GUI Notification");
   const [message, setMessage] = useState("Hello from ADB GUI Studio!");
-  const [type, setType] = useState<"toast" | "intent">("toast");
   const [loading, setLoading] = useState(false);
 
   const handleSend = async () => {
     if (!title && !message) return;
     setLoading(true);
     try {
-      if (type === "toast") {
-        // Send via shell input or broadcast toast
-        await invoke("send_text_input", {
-          serial: activeDevice,
-          text: `[Notification: ${title} - ${message}]`,
-        });
-        onFeedback(`Sent toast/input: ${title}`);
-      } else {
-        // Broadcast custom notification intent
-        await invoke("execute_intent", {
-          serial: activeDevice,
-          intentType: "broadcast",
-          action: "android.intent.action.MAIN",
-          packageName: null,
-          activityName: null,
-          dataUri: null,
-          category: null,
-          flags: null,
-          extras: [
-            { key: "title", value: title, extra_type: "string" },
-            { key: "message", value: message, extra_type: "string" },
-          ],
-        });
-        onFeedback(`Broadcasted notification intent`);
-      }
+      // Broadcast custom notification intent
+      await invoke("execute_intent", {
+        serial: activeDevice,
+        intentType: "broadcast",
+        action: "android.intent.action.MAIN",
+        packageName: null,
+        activityName: null,
+        dataUri: null,
+        category: null,
+        flags: null,
+        extras: [
+          { key: "title", value: title, extra_type: "string" },
+          { key: "message", value: message, extra_type: "string" },
+          { key: "android.title", value: title, extra_type: "string" },
+          { key: "android.text", value: message, extra_type: "string" },
+        ],
+      });
+      onFeedback(`Broadcasted notification: "${title}"`);
       onClose();
     } catch (err: any) {
       onFeedback(`Error: ${String(err)}`);
@@ -67,8 +59,8 @@ export const CustomNotificationModal: React.FC<CustomNotificationModalProps> = (
     if (!onViewCommand) return;
     onViewCommand({
       title: "Custom Notification Broadcast",
-      command: `adb -s ${activeDevice} shell am broadcast -a android.intent.action.MAIN --es title "${title}" --es text "${message}"`,
-      description: "Dispatches an Android broadcast intent with notification payload.",
+      command: `adb -s ${activeDevice} shell am broadcast -a android.intent.action.MAIN --es title "${title}" --es message "${message}"`,
+      description: "Dispatches an Android broadcast intent with notification title and payload.",
       category: "Broadcast Manager",
     });
   };
@@ -77,13 +69,13 @@ export const CustomNotificationModal: React.FC<CustomNotificationModalProps> = (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Custom Notification / Toast Sender"
+      title="Custom Notification Sender"
       icon={<Bell className="h-5 w-5 text-amber-400" />}
       maxWidth="max-w-lg"
     >
       <div className="space-y-4">
         <p className="text-xs text-[var(--neo-text-muted)] font-medium">
-          Broadcast a custom test notification or message payload to verify notification listeners and device UI.
+          Broadcast a custom test notification payload to verify notification listeners and device UI.
         </p>
 
         <div className="space-y-1">
@@ -104,27 +96,6 @@ export const CustomNotificationModal: React.FC<CustomNotificationModalProps> = (
             placeholder="Notification message content..."
             icon={<MessageSquare className="h-4 w-4" />}
           />
-        </div>
-
-        <div className="flex gap-2 pt-1">
-          <button
-            type="button"
-            onClick={() => setType("toast")}
-            className={`flex-1 py-2 text-xs font-black uppercase neo-box cursor-pointer transition-all ${
-              type === "toast" ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)]" : "bg-black/10 text-[var(--neo-text)]"
-            }`}
-          >
-            Type Focus / Input
-          </button>
-          <button
-            type="button"
-            onClick={() => setType("intent")}
-            className={`flex-1 py-2 text-xs font-black uppercase neo-box cursor-pointer transition-all ${
-              type === "intent" ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)]" : "bg-black/10 text-[var(--neo-text)]"
-            }`}
-          >
-            Broadcast Intent
-          </button>
         </div>
 
         <div className="pt-3 border-t border-[var(--neo-border)] flex items-center justify-between gap-3">

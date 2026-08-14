@@ -9,6 +9,7 @@ import { Input } from "../ui/Input";
 interface UiDumpResult {
   success: boolean;
   screenshot_path: string;
+  data_url?: string;
   xml_content: string;
   error?: string;
 }
@@ -132,6 +133,21 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
     setExpandedNodeIds((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const handleExpandAll = () => {
+    if (!parsedRoot) return;
+    const allIds: Record<string, boolean> = {};
+    const traverse = (n: ParsedNode) => {
+      allIds[n.id] = true;
+      n.children.forEach(traverse);
+    };
+    traverse(parsedRoot);
+    setExpandedNodeIds(allIds);
+  };
+
+  const handleCollapseAll = () => {
+    setExpandedNodeIds({});
+  };
+
   const handleCopy = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
     setCopiedKey(key);
@@ -177,7 +193,7 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
               <AlertCircle className="h-4 w-4 shrink-0" />
               {errorMsg}
             </span>
-            <button onClick={() => setErrorMsg(null)} className="text-xs hover:underline opacity-80">
+            <button onClick={() => setErrorMsg(null)} className="text-xs hover:underline opacity-80 cursor-pointer">
               Dismiss
             </button>
           </div>
@@ -203,10 +219,10 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
                 <Badge variant="secondary">Live Snapshot</Badge>
               </div>
 
-              {dumpData.screenshot_path ? (
+              {dumpData.data_url || dumpData.screenshot_path ? (
                 <div className="relative border-2 border-black rounded overflow-hidden max-h-[500px] inline-block bg-black">
                   <img
-                    src={convertFileSrc(dumpData.screenshot_path)}
+                    src={dumpData.data_url || convertFileSrc(dumpData.screenshot_path)}
                     alt="Device Screen"
                     className="max-h-[500px] w-auto object-contain block"
                   />
@@ -232,10 +248,27 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
 
             {/* MIDDLE: XML NODE TREE (5 COLS) */}
             <div className="lg:col-span-5 neo-box bg-[var(--neo-card-bg)] p-3 flex flex-col h-[560px]">
-              <div className="flex items-center justify-between gap-2 mb-3">
+              <div className="flex items-center justify-between gap-2 mb-2">
                 <span className="text-[10px] font-black uppercase tracking-wider text-[var(--neo-text-muted)]">
                   UI Hierarchy Tree
                 </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={handleExpandAll}
+                    className="px-2 py-0.5 text-[10px] font-bold neo-box-sm bg-black/20 hover:bg-black/30 text-[var(--neo-text)] cursor-pointer"
+                  >
+                    Expand All
+                  </button>
+                  <button
+                    onClick={handleCollapseAll}
+                    className="px-2 py-0.5 text-[10px] font-bold neo-box-sm bg-black/20 hover:bg-black/30 text-[var(--neo-text)] cursor-pointer"
+                  >
+                    Collapse
+                  </button>
+                </div>
+              </div>
+
+              <div className="mb-2">
                 <Input
                   placeholder="Filter by ID, text, class..."
                   value={searchTerm}
@@ -284,7 +317,7 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
                           <span>{selectedNode.resourceId}</span>
                           <button
                             onClick={() => handleCopy(selectedNode.resourceId, "res_id")}
-                            className="p-1 hover:bg-white/10 rounded shrink-0 ml-1"
+                            className="p-1 hover:bg-white/10 rounded shrink-0 ml-1 cursor-pointer"
                             title="Copy Resource ID"
                           >
                             {copiedKey === "res_id" ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
@@ -300,7 +333,7 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
                           <span>"{selectedNode.text}"</span>
                           <button
                             onClick={() => handleCopy(selectedNode.text, "text")}
-                            className="p-1 hover:bg-white/10 rounded shrink-0 ml-1"
+                            className="p-1 hover:bg-white/10 rounded shrink-0 ml-1 cursor-pointer"
                             title="Copy Text"
                           >
                             {copiedKey === "text" ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
@@ -402,7 +435,7 @@ const TreeNodeItem: React.FC<TreeNodeItemProps> = ({
         onMouseLeave={() => onHoverNode(null)}
         className={`flex items-center gap-1.5 py-1 px-1.5 rounded cursor-pointer transition-colors ${
           isSelected
-            ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)] font-bold"
+            ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)] font-bold shadow-sm"
             : isHovered
             ? "bg-white/10"
             : matchesSearch
@@ -416,27 +449,37 @@ const TreeNodeItem: React.FC<TreeNodeItemProps> = ({
               e.stopPropagation();
               toggleExpand(node.id);
             }}
-            className="p-0.5 hover:bg-black/20 rounded"
+            className="p-0.5 hover:bg-black/20 rounded cursor-pointer"
           >
             {isExpanded ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
           </button>
         ) : (
-          <span className="w-4" />
+          <span className="w-4 inline-block" />
         )}
 
-        <span className="text-cyan-400 font-bold shrink-0">{node.className}</span>
+        <span className={`font-bold shrink-0 text-[11px] ${isSelected ? "text-black" : "text-cyan-400"}`}>
+          {node.className}
+        </span>
 
         {node.resourceId && (
-          <span className="text-[10px] text-emerald-300 bg-black/40 px-1 rounded truncate max-w-[120px]">
+          <span className={`text-[10px] px-1 rounded truncate max-w-[130px] font-mono ${
+            isSelected ? "bg-black/20 text-black font-semibold" : "text-emerald-300 bg-black/40"
+          }`}>
             #{node.resourceId.split("/").pop()}
           </span>
         )}
 
-        {node.text && <span className="text-[10px] text-amber-200 italic truncate max-w-[100px]">"{node.text}"</span>}
+        {node.text && (
+          <span className={`text-[10px] italic truncate max-w-[110px] ${
+            isSelected ? "text-zinc-900 font-semibold" : "text-amber-200"
+          }`}>
+            "{node.text}"
+          </span>
+        )}
       </div>
 
       {hasChildren && isExpanded && (
-        <div className="border-l border-white/10 ml-1">
+        <div className="border-l-2 border-white/10 ml-2 pl-1 space-y-0.5">
           {node.children.map((child) => (
             <TreeNodeItem
               key={child.id}

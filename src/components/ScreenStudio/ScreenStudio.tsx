@@ -9,6 +9,7 @@ import { Select } from "../ui/Select";
 interface ScreenshotResult {
   success: boolean;
   file_path: string;
+  data_url?: string;
   timestamp: string;
   error?: string;
 }
@@ -223,10 +224,10 @@ export const ScreenStudio: React.FC<ScreenStudioProps> = ({ activeDevice }) => {
               </div>
 
               <div className="neo-box bg-black/40 min-h-[240px] flex items-center justify-center p-3 mb-4 relative overflow-hidden group">
-                {screenshot && screenshot.file_path ? (
+                {screenshot && (screenshot.data_url || screenshot.file_path) ? (
                   <div className="relative w-full flex flex-col items-center">
                     <img
-                      src={convertFileSrc(screenshot.file_path)}
+                      src={screenshot.data_url || convertFileSrc(screenshot.file_path)}
                       alt="Device Screenshot"
                       className="max-h-[320px] rounded border border-white/10 shadow-lg object-contain"
                     />

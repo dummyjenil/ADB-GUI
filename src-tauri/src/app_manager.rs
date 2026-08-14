@@ -522,13 +522,30 @@ pub async fn backup_app_data(serial: String, package_name: String, save_path: St
 
 #[tauri::command]
 pub async fn execute_pm_command(serial: String, command: String, args: Option<Vec<String>>) -> Result<String, String> {
-    let mut shell_args = vec!["pm", command.as_str()];
-    let empty_args = Vec::new();
-    let actual_args = args.as_ref().unwrap_or(&empty_args);
-    for a in actual_args {
-        shell_args.push(a.as_str());
+    let mut clean_cmd = command.trim().to_string();
+    if clean_cmd.starts_with("pm ") {
+        clean_cmd = clean_cmd[3..].trim().to_string();
     }
-    run_adb_shell(&serial, &shell_args)
+    let mut shell_args: Vec<String> = vec!["pm".to_string()];
+    for part in clean_cmd.split_whitespace() {
+        shell_args.push(part.to_string());
+    }
+
+    if let Some(extra_args) = args {
+        for a in extra_args {
+            for sub in a.split_whitespace() {
+                shell_args.push(sub.to_string());
+            }
+        }
+    }
+
+    let slice_args: Vec<&str> = shell_args.iter().map(|s| s.as_str()).collect();
+    let res = run_adb_shell(&serial, &slice_args)?;
+    if res.trim().is_empty() {
+        Ok("PM Command completed successfully (no text output returned from device).".to_string())
+    } else {
+        Ok(res)
+    }
 }
 
 #[tauri::command]
