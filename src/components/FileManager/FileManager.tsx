@@ -8,7 +8,8 @@ import { CreateFolderModal } from "./CreateFolderModal";
 import { RenameModal } from "./RenameModal";
 import { FileManagerToast } from "./FileManagerToast";
 import { useFileManager } from "./useFileManager";
-import { AlertCircle, Upload } from "lucide-react";
+import { EmptyState } from "../ui";
+import { Upload } from "lucide-react";
 
 interface FileManagerProps {
   activeDevice: string | null;
@@ -61,13 +62,10 @@ export const FileManager: React.FC<FileManagerProps> = ({ activeDevice }) => {
 
   if (!activeDevice) {
     return (
-      <div className="neo-box p-8 text-center bg-[var(--neo-card-bg)] space-y-3">
-        <AlertCircle className="h-10 w-10 text-amber-400 mx-auto" />
-        <h3 className="text-lg font-black">No Active Device Connected</h3>
-        <p className="text-xs text-[var(--neo-text-muted)]">
-          Please select a connected device from the top navigation bar to explore files.
-        </p>
-      </div>
+      <EmptyState
+        title="No Active Device Connected"
+        description="Please select a connected device from the top navigation bar to explore files."
+      />
     );
   }
 

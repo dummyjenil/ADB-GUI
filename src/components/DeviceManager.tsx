@@ -4,11 +4,15 @@ import { DeviceDashboard } from "./DeviceDashboard";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { QRCode } from "react-qrcode-logo";
-import { Card } from "./ui/Card";
-import { Button } from "./ui/Button";
-import { Input } from "./ui/Input";
-import { Badge } from "./ui/Badge";
-import { Select } from "./ui/Select";
+import {
+  Card,
+  Button,
+  Input,
+  Badge,
+  Select,
+  Tabs,
+  Alert,
+} from "./ui";
 import {
   Smartphone,
   Wifi,
@@ -16,11 +20,8 @@ import {
   QrCode,
   KeyRound,
   Link2,
-  CheckCircle2,
-  XCircle,
   Radio,
   Unplug,
-  Info,
   Square,
   Play,
   Activity,
@@ -158,6 +159,9 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
   const handleDisconnect = async (target: string) => {
     try {
       await invoke("disconnect_device", { target });
+      if (activeDevice === target) {
+        setActiveDevice(null as any);
+      }
       onRefresh();
     } catch (err) {
       console.error(err);
@@ -247,22 +251,24 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
       </Card>
 
       {/* Mode Switcher Tabs */}
-      <div className="flex flex-wrap items-center gap-2 border-b-2 border-[var(--neo-border)] pb-3">
-        <Button
-          variant={viewMode === "dashboard" ? "primary" : "ghost"}
-          onClick={() => setViewMode("dashboard")}
-          icon={<Activity className="h-4 w-4" />}
-        >
-          Device Dashboard & Telemetry
-        </Button>
-
-        <Button
-          variant={viewMode === "pairing" ? "secondary" : "ghost"}
-          onClick={() => setViewMode("pairing")}
-          icon={<Wifi className="h-4 w-4" />}
-        >
-          Wireless Debugging & Pairing
-        </Button>
+      <div className="border-b-2 border-[var(--neo-border)] pb-3">
+        <Tabs
+          activeTab={viewMode}
+          onChange={setViewMode}
+          variant="buttons"
+          tabs={[
+            {
+              id: "dashboard",
+              label: "Device Dashboard & Telemetry",
+              icon: <Activity className="h-4 w-4" />,
+            },
+            {
+              id: "pairing",
+              label: "Wireless Debugging & Pairing",
+              icon: <Wifi className="h-4 w-4" />,
+            },
+          ]}
+        />
       </div>
 
       {/* Dashboard View */}
@@ -276,303 +282,277 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
           headerTitle="Wireless Debugging & Pairing"
           headerIcon={<Wifi className="h-5 w-5" />}
           headerVariant="secondary"
-        headerAction={
-          <div className="flex items-center gap-1.5">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={scanWirelessServices}
-              icon={<RefreshCw className={`h-3.5 w-3.5 ${isDiscovering ? "animate-spin text-[var(--neo-primary)]" : ""}`} />}
-              title="Scan network for wireless ADB services"
-            >
-              {isDiscovering ? "Scanning..." : "Scan"}
-            </Button>
-            <Button
-              size="sm"
-              variant={activeSubTab === "qr" ? "primary" : "ghost"}
-              onClick={() => setActiveSubTab("qr")}
-              icon={<QrCode className="h-3.5 w-3.5" />}
-            >
-              QR Pair
-            </Button>
-            <Button
-              size="sm"
-              variant={activeSubTab === "code" ? "primary" : "ghost"}
-              onClick={() => setActiveSubTab("code")}
-              icon={<KeyRound className="h-3.5 w-3.5" />}
-            >
-              Pair Code
-            </Button>
-            <Button
-              size="sm"
-              variant={activeSubTab === "direct" ? "primary" : "ghost"}
-              onClick={() => setActiveSubTab("direct")}
-              icon={<Link2 className="h-3.5 w-3.5" />}
-            >
-              Direct IP
-            </Button>
-          </div>
-        }
-      >
-        {/* Sub-tab 1: QR Code Pair */}
-        {activeSubTab === "qr" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-            {/* Clean QR Code View */}
-            <div className="flex flex-col items-center justify-center p-5 neo-box bg-white text-black text-center">
-              <div className="p-3 bg-white rounded-xl">
-                <QRCode
-                  value={qrPayload}
-                  size={180}
-                  bgColor="#FFFFFF"
-                  fgColor="#000000"
-                  qrStyle="squares"
-                />
-              </div>
+          headerAction={
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={scanWirelessServices}
+                icon={<RefreshCw className={`h-3.5 w-3.5 ${isDiscovering ? "animate-spin text-[var(--neo-primary)]" : ""}`} />}
+                title="Scan network for wireless ADB services"
+              >
+                {isDiscovering ? "Scanning..." : "Scan"}
+              </Button>
+              <Tabs
+                size="sm"
+                variant="compact"
+                activeTab={activeSubTab}
+                onChange={setActiveSubTab}
+                tabs={[
+                  { id: "qr", label: "QR Pair", icon: <QrCode className="h-3.5 w-3.5" /> },
+                  { id: "code", label: "Pair Code", icon: <KeyRound className="h-3.5 w-3.5" /> },
+                  { id: "direct", label: "Direct IP", icon: <Link2 className="h-3.5 w-3.5" /> },
+                ]}
+              />
             </div>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <h3 className="text-xs font-black uppercase tracking-wider text-[var(--neo-text-muted)]">
-                  Pairing Steps:
-                </h3>
-                <ol className="text-xs text-[var(--neo-text)] space-y-2 list-decimal list-inside neo-box p-4 bg-black/10">
-                  <li>Phone & PC must be connected to <strong>same Wi-Fi network</strong>.</li>
-                  <li>Settings → Developer options → <strong>Wireless debugging</strong>.</li>
-                  <li>Tap <strong>"Pair device with QR code"</strong> and scan code.</li>
-                </ol>
-              </div>
-
-              {/* Start & Stop Discovery Buttons */}
-              <div className="flex gap-2">
-                {!isListening ? (
-                  <Button
-                    onClick={handleStartQrListener}
-                    variant="primary"
-                    className="w-full"
-                    icon={<Play className="h-4 w-4 fill-black" />}
-                  >
-                    Start QR Discovery
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={handleStopQrListener}
-                    variant="rose"
-                    className="w-full"
-                    icon={<Square className="h-4 w-4 fill-white" />}
-                  >
-                    Stop QR Discovery
-                  </Button>
-                )}
-              </div>
-
-              <div className="p-3 neo-box-sm text-xs flex items-start gap-2 bg-black/10 font-mono text-[11px]">
-                <Info className="h-4 w-4 text-[var(--neo-primary)] shrink-0 mt-0.5" />
-                <span>{qrStatus}</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Sub-tab 2: Pair Code Form */}
-        {activeSubTab === "code" && (
-          <form onSubmit={handlePairWithCode} className="max-w-md mx-auto space-y-4">
-            <p className="text-xs text-[var(--neo-text-muted)] text-center font-medium">
-              Developer options → Wireless debugging → Pair device with pairing code.
-            </p>
-
-            {/* Discovered Device Selector Box */}
-            {discoveredServices.filter((s) => s.service_type === "pairing").length > 0 && (
-              <div className="p-3 neo-box-sm bg-emerald-500/10 border-2 border-emerald-500/30 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black uppercase text-emerald-400 flex items-center gap-1.5">
-                    <Radio className="h-3 w-3 animate-pulse" />
-                    Discovered Pairing Target
-                  </span>
-                  <span className="text-[10px] text-[var(--neo-text-muted)]">Select target or type IP/Port below</span>
+          }
+        >
+          {/* Sub-tab 1: QR Code Pair */}
+          {activeSubTab === "qr" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+              {/* Clean QR Code View */}
+              <div className="flex flex-col items-center justify-center p-5 neo-box bg-white text-black text-center">
+                <div className="p-3 bg-white rounded-xl">
+                  <QRCode
+                    value={qrPayload}
+                    size={180}
+                    bgColor="#FFFFFF"
+                    fgColor="#000000"
+                    qrStyle="squares"
+                  />
                 </div>
-                <Select
-                  className="w-full"
-                  variant="card"
-                  placeholder="-- Choose Discovered Device --"
-                  value={
-                    discoveredServices
-                      .filter((s) => s.service_type === "pairing")
-                      .find((s) => s.ip === pairIp && s.port.toString() === pairPort)
-                      ?.full_address || ""
-                  }
-                  onChange={(val) => {
-                    const selected = discoveredServices
-                      .filter((s) => s.service_type === "pairing")
-                      .find((s) => s.full_address === val);
-                    if (selected) {
-                      setPairIp(selected.ip);
-                      setPairPort(selected.port.toString());
-                    }
-                  }}
-                  options={discoveredServices
-                    .filter((s) => s.service_type === "pairing")
-                    .map((s) => ({
-                      value: s.full_address,
-                      label: s.full_address,
-                      sublabel: s.name.split(".")[0],
-                      icon: <Radio className="h-3.5 w-3.5 text-emerald-400" />,
-                    }))}
-                />
               </div>
-            )}
 
-            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-[var(--neo-text-muted)]">
+                    Pairing Steps:
+                  </h3>
+                  <ol className="text-xs text-[var(--neo-text)] space-y-2 list-decimal list-inside neo-box p-4 bg-black/10 font-medium leading-relaxed">
+                    <li>Phone & PC must be connected to <strong>same Wi-Fi network</strong>.</li>
+                    <li>Settings → Developer options → <strong>Wireless debugging</strong>.</li>
+                    <li>Tap <strong>"Pair device with QR code"</strong> and scan code.</li>
+                  </ol>
+                </div>
+
+                {/* Start & Stop Discovery Buttons */}
+                <div className="flex gap-2">
+                  {!isListening ? (
+                    <Button
+                      onClick={handleStartQrListener}
+                      variant="primary"
+                      className="w-full"
+                      icon={<Play className="h-4 w-4 fill-black" />}
+                    >
+                      Start QR Discovery
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={handleStopQrListener}
+                      variant="rose"
+                      className="w-full"
+                      icon={<Square className="h-4 w-4 fill-white" />}
+                    >
+                      Stop QR Discovery
+                    </Button>
+                  )}
+                </div>
+
+                <Alert variant="info">{qrStatus}</Alert>
+              </div>
+            </div>
+          )}
+
+          {/* Sub-tab 2: Pair Code Form */}
+          {activeSubTab === "code" && (
+            <form onSubmit={handlePairWithCode} className="max-w-md mx-auto space-y-4">
+              <p className="text-xs text-[var(--neo-text-muted)] text-center font-medium">
+                Developer options → Wireless debugging → Pair device with pairing code.
+              </p>
+
+              {/* Discovered Device Selector Box */}
+              {discoveredServices.filter((s) => s.service_type === "pairing").length > 0 && (
+                <div className="p-3 neo-box-sm bg-emerald-500/10 border-2 border-emerald-500/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black uppercase text-emerald-400 flex items-center gap-1.5">
+                      <Radio className="h-3 w-3 animate-pulse" />
+                      Discovered Pairing Target
+                    </span>
+                    <span className="text-[10px] text-[var(--neo-text-muted)]">Select target or type IP/Port below</span>
+                  </div>
+                  <Select
+                    className="w-full"
+                    variant="card"
+                    placeholder="-- Choose Discovered Device --"
+                    value={
+                      discoveredServices
+                        .filter((s) => s.service_type === "pairing")
+                        .find((s) => s.ip === pairIp && s.port.toString() === pairPort)
+                        ?.full_address || ""
+                    }
+                    onChange={(val) => {
+                      const selected = discoveredServices
+                        .filter((s) => s.service_type === "pairing")
+                        .find((s) => s.full_address === val);
+                      if (selected) {
+                        setPairIp(selected.ip);
+                        setPairPort(selected.port.toString());
+                      }
+                    }}
+                    options={discoveredServices
+                      .filter((s) => s.service_type === "pairing")
+                      .map((s) => ({
+                        value: s.full_address,
+                        label: s.full_address,
+                        sublabel: s.name.split(".")[0],
+                        icon: <Radio className="h-3.5 w-3.5 text-emerald-400" />,
+                      }))}
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Input
+                    label="Phone IP Address"
+                    placeholder="192.168.1.50"
+                    value={pairIp}
+                    onChange={(e) => setPairIp(e.target.value)}
+                    list="pair-ip-datalist"
+                    required
+                  />
+                  <datalist id="pair-ip-datalist">
+                    {discoveredServices
+                      .filter((s) => s.service_type === "pairing")
+                      .map((s, i) => (
+                        <option key={i} value={s.ip}>
+                          {s.name.split(".")[0]}
+                        </option>
+                      ))}
+                  </datalist>
+                </div>
+                <div>
+                  <Input
+                    label="Pairing Port"
+                    placeholder="37123"
+                    value={pairPort}
+                    onChange={(e) => setPairPort(e.target.value)}
+                    list="pair-port-datalist"
+                    required
+                  />
+                  <datalist id="pair-port-datalist">
+                    {discoveredServices
+                      .filter((s) => s.service_type === "pairing")
+                      .map((s, i) => (
+                        <option key={i} value={s.port.toString()}>
+                          {s.full_address}
+                        </option>
+                      ))}
+                  </datalist>
+                </div>
+              </div>
+
+              <Input
+                label="6-Digit Pairing Code"
+                placeholder="123456"
+                value={pairCode}
+                onChange={(e) => setPairCode(e.target.value)}
+                className="text-center tracking-widest font-bold text-sm"
+                required
+              />
+
+              <Button type="submit" variant="primary" className="w-full">
+                Pair Device
+              </Button>
+
+              {pairMsg && (
+                <Alert variant={pairMsg.success ? "success" : "danger"}>
+                  {pairMsg.text}
+                </Alert>
+              )}
+            </form>
+          )}
+
+          {/* Sub-tab 3: Direct IP Form */}
+          {activeSubTab === "direct" && (
+            <form onSubmit={handleDirectConnect} className="max-w-md mx-auto space-y-4">
+              <p className="text-xs text-[var(--neo-text-muted)] text-center font-medium">
+                Connect to an already-paired device via IP and Wireless Debugging Port.
+              </p>
+
+              {/* Discovered Connect Device Selector Box */}
+              {discoveredServices.filter((s) => s.service_type === "connect").length > 0 && (
+                <div className="p-3 neo-box-sm bg-cyan-500/10 border-2 border-cyan-500/30 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black uppercase text-cyan-400 flex items-center gap-1.5">
+                      <Radio className="h-3 w-3 animate-pulse" />
+                      Discovered Connect Target:
+                    </span>
+                    <span className="text-[10px] text-[var(--neo-text-muted)]">Select or type manually below</span>
+                  </div>
+                  <Select
+                    options={[
+                      {
+                        value: "",
+                        label: `-- Choose Discovered Device (${
+                          discoveredServices.filter((s) => s.service_type === "connect").length
+                        } found) --`,
+                      },
+                      ...discoveredServices
+                        .filter((s) => s.service_type === "connect")
+                        .map((s) => ({
+                          value: s.full_address,
+                          label: `${s.name.split(".")[0]} (${s.full_address})`,
+                        })),
+                    ]}
+                    value={
+                      discoveredServices
+                        .filter((s) => s.service_type === "connect")
+                        .some((s) => s.full_address === directIpPort)
+                        ? directIpPort
+                        : ""
+                    }
+                    onChange={(val) => {
+                      if (val) setDirectIpPort(val);
+                    }}
+                    variant="card"
+                    className="w-full"
+                  />
+                </div>
+              )}
+
               <div>
                 <Input
-                  label="Phone IP Address"
-                  placeholder="192.168.1.50"
-                  value={pairIp}
-                  onChange={(e) => setPairIp(e.target.value)}
-                  list="pair-ip-datalist"
+                  label="Target Device IP:Port"
+                  placeholder="192.168.1.50:5555"
+                  value={directIpPort}
+                  onChange={(e) => setDirectIpPort(e.target.value)}
+                  list="direct-ip-datalist"
                   required
                 />
-                <datalist id="pair-ip-datalist">
+                <datalist id="direct-ip-datalist">
                   {discoveredServices
-                    .filter((s) => s.service_type === "pairing")
+                    .filter((s) => s.service_type === "connect")
                     .map((s, i) => (
-                      <option key={i} value={s.ip}>
+                      <option key={i} value={s.full_address}>
                         {s.name.split(".")[0]}
                       </option>
                     ))}
                 </datalist>
               </div>
-              <div>
-                <Input
-                  label="Pairing Port"
-                  placeholder="37123"
-                  value={pairPort}
-                  onChange={(e) => setPairPort(e.target.value)}
-                  list="pair-port-datalist"
-                  required
-                />
-                <datalist id="pair-port-datalist">
-                  {discoveredServices
-                    .filter((s) => s.service_type === "pairing")
-                    .map((s, i) => (
-                      <option key={i} value={s.port.toString()}>
-                        {s.full_address}
-                      </option>
-                    ))}
-                </datalist>
-              </div>
-            </div>
 
-            <Input
-              label="6-Digit Pairing Code"
-              placeholder="123456"
-              value={pairCode}
-              onChange={(e) => setPairCode(e.target.value)}
-              className="text-center tracking-widest font-bold text-sm"
-              required
-            />
+              <Button type="submit" variant="secondary" className="w-full">
+                Connect to Wireless Device
+              </Button>
 
-            <Button type="submit" variant="primary" className="w-full">
-              Pair Device
-            </Button>
-
-            {pairMsg && (
-              <div
-                className={`p-3 neo-box-sm text-xs flex items-center gap-2 font-bold ${
-                  pairMsg.success ? "bg-emerald-400 text-black" : "bg-rose-500 text-white"
-                }`}
-              >
-                {pairMsg.success ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
-                <span>{pairMsg.text}</span>
-              </div>
-            )}
-          </form>
-        )}
-
-        {/* Sub-tab 3: Direct IP Form */}
-        {activeSubTab === "direct" && (
-          <form onSubmit={handleDirectConnect} className="max-w-md mx-auto space-y-4">
-            <p className="text-xs text-[var(--neo-text-muted)] text-center font-medium">
-              Connect to an already-paired device via IP and Wireless Debugging Port.
-            </p>
-
-            {/* Discovered Connect Device Selector Box */}
-            {discoveredServices.filter((s) => s.service_type === "connect").length > 0 && (
-              <div className="p-3 neo-box-sm bg-cyan-500/10 border-2 border-cyan-500/30 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black uppercase text-cyan-400 flex items-center gap-1.5">
-                    <Radio className="h-3 w-3 animate-pulse" />
-                    Discovered Connect Target:
-                  </span>
-                  <span className="text-[10px] text-[var(--neo-text-muted)]">Select or type manually below</span>
-                </div>
-                <Select
-                  options={[
-                    {
-                      value: "",
-                      label: `-- Choose Discovered Device (${
-                        discoveredServices.filter((s) => s.service_type === "connect").length
-                      } found) --`,
-                    },
-                    ...discoveredServices
-                      .filter((s) => s.service_type === "connect")
-                      .map((s) => ({
-                        value: s.full_address,
-                        label: `${s.name.split(".")[0]} (${s.full_address})`,
-                      })),
-                  ]}
-                  value={
-                    discoveredServices
-                      .filter((s) => s.service_type === "connect")
-                      .some((s) => s.full_address === directIpPort)
-                      ? directIpPort
-                      : ""
-                  }
-                  onChange={(val) => {
-                    if (val) setDirectIpPort(val);
-                  }}
-                  variant="card"
-                  className="w-full"
-                />
-              </div>
-            )}
-
-            <div>
-              <Input
-                label="Target Device IP:Port"
-                placeholder="192.168.1.50:5555"
-                value={directIpPort}
-                onChange={(e) => setDirectIpPort(e.target.value)}
-                list="direct-ip-datalist"
-                required
-              />
-              <datalist id="direct-ip-datalist">
-                {discoveredServices
-                  .filter((s) => s.service_type === "connect")
-                  .map((s, i) => (
-                    <option key={i} value={s.full_address}>
-                      {s.name.split(".")[0]}
-                    </option>
-                  ))}
-              </datalist>
-            </div>
-
-            <Button type="submit" variant="secondary" className="w-full">
-              Connect to Wireless Device
-            </Button>
-
-            {directMsg && (
-              <div
-                className={`p-3 neo-box-sm text-xs flex items-center gap-2 font-bold ${
-                  directMsg.success ? "bg-emerald-400 text-black" : "bg-rose-500 text-white"
-                }`}
-              >
-                {directMsg.success ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
-                <span>{directMsg.text}</span>
-              </div>
-            )}
-          </form>
-        )}
-      </Card>
+              {directMsg && (
+                <Alert variant={directMsg.success ? "success" : "danger"}>
+                  {directMsg.text}
+                </Alert>
+              )}
+            </form>
+          )}
+        </Card>
       )}
     </div>
   );

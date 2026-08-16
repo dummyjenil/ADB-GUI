@@ -1,6 +1,7 @@
 import React from "react";
 import { HardDrive } from "lucide-react";
 import { StoragePartition } from "../../types/fileManager";
+import { ProgressBar } from "../ui";
 
 interface StorageVisualizerProps {
   storageList: StoragePartition[];
@@ -12,6 +13,8 @@ export const StorageVisualizer: React.FC<StorageVisualizerProps> = ({ storageLis
     storageList[0];
 
   if (!mainPartition) return null;
+
+  const percentVal = parseFloat(mainPartition.use_percent.replace("%", "")) || 0;
 
   return (
     <div className="neo-box p-3.5 bg-[var(--neo-card-bg)] flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -34,12 +37,7 @@ export const StorageVisualizer: React.FC<StorageVisualizerProps> = ({ storageLis
           <span>Used</span>
           <span>{mainPartition.use_percent}</span>
         </div>
-        <div className="w-full h-3 neo-box bg-[var(--neo-bg)] p-0.5 overflow-hidden">
-          <div
-            className="h-full bg-[var(--neo-primary)] transition-all duration-500"
-            style={{ width: mainPartition.use_percent }}
-          />
-        </div>
+        <ProgressBar value={percentVal} colorClass="bg-[var(--neo-primary)]" />
       </div>
     </div>
   );

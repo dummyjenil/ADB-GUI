@@ -13,17 +13,12 @@ import {
   FileText,
   Save,
   Check,
-  Terminal,
   RefreshCw,
   Copy,
   X,
   ChevronDown,
-  AlertCircle,
 } from "lucide-react";
-import { Button } from "../ui/Button";
-import { Badge } from "../ui/Badge";
-import { Select, SelectOption } from "../ui/Select";
-import { Input } from "../ui/Input";
+import { Button, Badge, Select, SelectOption, Input, EmptyState, Alert } from "../ui";
 import {
   LogcatEntry,
   LogcatFilterConfig,
@@ -435,13 +430,10 @@ export const LogcatStudio: React.FC<LogcatStudioProps> = ({ activeDevice, initia
 
   if (!activeDevice) {
     return (
-      <div className="neo-box p-8 text-center bg-[var(--neo-card-bg)]">
-        <Terminal className="h-12 w-12 mx-auto text-[var(--neo-text-muted)] mb-3" />
-        <h2 className="text-lg font-black text-[var(--neo-text)] uppercase">No Device Selected</h2>
-        <p className="text-xs text-[var(--neo-text-muted)] mt-1 font-mono">
-          Please select a connected Android device from the top bar to use Logcat Studio.
-        </p>
-      </div>
+      <EmptyState
+        title="No Device Selected"
+        description="Please select a connected Android device from the top bar to use Logcat Studio."
+      />
     );
   }
 
@@ -545,10 +537,9 @@ export const LogcatStudio: React.FC<LogcatStudioProps> = ({ activeDevice, initia
         </div>
 
         {filterWarning && (
-          <div className="p-2.5 text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500 rounded-md flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 shrink-0 text-amber-400" />
-            <span>{filterWarning}</span>
-          </div>
+          <Alert variant="warning" onClose={() => setFilterWarning(null)}>
+            {filterWarning}
+          </Alert>
         )}
 
         {/* Row 2: Filter Toolbar (Mobile-Side Native Filters) */}

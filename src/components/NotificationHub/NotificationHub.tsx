@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Bell, RefreshCw, Search, Copy, Check, Filter, Trash2, ShieldAlert } from "lucide-react";
-import { Card } from "../ui/Card";
-import { Button } from "../ui/Button";
-import { Badge } from "../ui/Badge";
-import { Input } from "../ui/Input";
+import { Bell, RefreshCw, Check, Copy, Trash2 } from "lucide-react";
+import { Card, Button, Badge, SearchInput, EmptyState, Alert } from "../ui";
 
 interface NotificationItem {
   id: string;
@@ -132,11 +129,10 @@ export const NotificationHub: React.FC<NotificationHubProps> = ({ activeDevice }
 
   if (!activeDevice) {
     return (
-      <Card headerTitle="Mobile Notification Mirroring Hub" headerIcon={<Bell className="h-5 w-5" />} headerVariant="accent">
-        <div className="text-center py-12 text-[var(--neo-text-muted)] font-bold">
-          No device selected. Please select a connected Android device from top bar.
-        </div>
-      </Card>
+      <EmptyState
+        title="No Active Device Selected"
+        description="Please select a connected Android device from the top bar to view notifications."
+      />
     );
   }
 
@@ -178,29 +174,20 @@ export const NotificationHub: React.FC<NotificationHubProps> = ({ activeDevice }
         {/* Filter and Search Bar */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-6">
           <div className="flex-1">
-            <Input
+            <SearchInput
               placeholder="Search notifications by app, title, or body..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              icon={<Search className="h-4 w-4" />}
+              onChange={setSearchQuery}
+              count={filteredNotifications.length}
             />
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" icon={<Filter className="h-3.5 w-3.5" />}>
-              Total: {notifications.length}
-            </Badge>
           </div>
         </div>
 
         {errorMsg && (
-          <div className="neo-box p-3 mb-4 bg-red-500/20 text-red-300 border-red-500 flex items-center justify-between text-xs font-bold animate-neo-pop">
-            <span className="flex items-center gap-2">
-              <ShieldAlert className="h-4 w-4 shrink-0" />
+          <div className="mb-4">
+            <Alert variant="danger" onClose={() => setErrorMsg(null)}>
               {errorMsg}
-            </span>
-            <button onClick={() => setErrorMsg(null)} className="text-xs hover:underline opacity-80 cursor-pointer">
-              Dismiss
-            </button>
+            </Alert>
           </div>
         )}
 

@@ -3,20 +3,15 @@ import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import {
   Layers,
   RefreshCw,
-  Search,
   Copy,
   Check,
   Code,
   ChevronRight,
   ChevronDown,
-  AlertCircle,
   Eye,
-  Crosshair
+  Crosshair,
 } from "lucide-react";
-import { Card } from "../ui/Card";
-import { Button } from "../ui/Button";
-import { Badge } from "../ui/Badge";
-import { Input } from "../ui/Input";
+import { Card, Button, Badge, SearchInput, EmptyState, Alert, Tabs } from "../ui";
 
 interface UiDumpResult {
   success: boolean;
@@ -294,11 +289,10 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
 
   if (!activeDevice) {
     return (
-      <Card headerTitle="UIAutomator Screen Inspector" headerIcon={<Layers className="h-5 w-5" />} headerVariant="accent">
-        <div className="text-center py-12 text-[var(--neo-text-muted)] font-bold">
-          No device selected. Please select a connected Android device from top navigation bar.
-        </div>
-      </Card>
+      <EmptyState
+        title="No Active Device Selected"
+        description="Please select a connected Android device from the top navigation bar to use UI Inspector."
+      />
     );
   }
 
@@ -346,28 +340,24 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
         </div>
 
         {errorMsg && (
-          <div className="neo-box p-3 mb-4 bg-red-500/20 text-red-300 border-red-500 flex items-center justify-between text-xs font-bold">
-            <span className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 shrink-0" />
+          <div className="mb-4">
+            <Alert variant="danger" onClose={() => setErrorMsg(null)}>
               {errorMsg}
-            </span>
-            <button onClick={() => setErrorMsg(null)} className="text-xs hover:underline opacity-80 cursor-pointer">
-              Dismiss
-            </button>
+            </Alert>
           </div>
         )}
 
         {!dumpData ? (
-          <div className="neo-box bg-[var(--neo-card-bg)] p-12 text-center">
-            <Layers className="h-12 w-12 mx-auto mb-3 text-[var(--neo-primary)] animate-pulse" />
-            <h3 className="text-sm font-extrabold uppercase mb-1">No Screen Hierarchy Dumped Yet</h3>
-            <p className="text-xs text-[var(--neo-text-muted)] max-w-sm mx-auto mb-4">
-              Click "Dump Present Screen" to capture device screenshot and fetch aligned XML element tree.
-            </p>
-            <Button onClick={handleDumpUI} loading={loading} variant="primary" size="md" icon={<RefreshCw className="h-4 w-4" />}>
-              Dump Present Screen
-            </Button>
-          </div>
+          <EmptyState
+            title="No Screen Hierarchy Dumped Yet"
+            description="Click 'Dump Present Screen' to capture device screenshot and fetch aligned XML element tree."
+            icon={<Layers className="h-10 w-10 text-[var(--neo-primary)]" />}
+            action={
+              <Button onClick={handleDumpUI} loading={loading} variant="primary" size="md" icon={<RefreshCw className="h-4 w-4" />}>
+                Dump Present Screen
+              </Button>
+            }
+          />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
             {/* LEFT: SCREEN CANVAS OVERLAY (4 COLS) */}
@@ -377,32 +367,17 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
                   <Eye className="h-3.5 w-3.5 text-[var(--neo-primary)]" />
                   <span>Screen Visualizer</span>
                 </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setOverlayMode("selected")}
-                    className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
-                      overlayMode === "selected" ? "bg-[var(--neo-primary)] text-black" : "bg-black/30 text-zinc-400"
-                    }`}
-                  >
-                    Focus
-                  </button>
-                  <button
-                    onClick={() => setOverlayMode("clickable")}
-                    className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
-                      overlayMode === "clickable" ? "bg-amber-400 text-black" : "bg-black/30 text-zinc-400"
-                    }`}
-                  >
-                    Clickable
-                  </button>
-                  <button
-                    onClick={() => setOverlayMode("all")}
-                    className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
-                      overlayMode === "all" ? "bg-cyan-400 text-black" : "bg-black/30 text-zinc-400"
-                    }`}
-                  >
-                    All Boxes
-                  </button>
-                </div>
+                <Tabs
+                  size="sm"
+                  variant="compact"
+                  activeTab={overlayMode}
+                  onChange={setOverlayMode}
+                  tabs={[
+                    { id: "selected", label: "Focus" },
+                    { id: "clickable", label: "Clickable" },
+                    { id: "all", label: "All" },
+                  ]}
+                />
               </div>
 
               {dumpData.data_url || dumpData.screenshot_path ? (
@@ -511,12 +486,10 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
               </div>
 
               <div className="mb-2">
-                <Input
+                <SearchInput
                   placeholder="Filter by ID, text, class..."
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  icon={<Search className="h-3.5 w-3.5" />}
-                  className="py-1 text-xs"
+                  onChange={setSearchTerm}
                 />
               </div>
 

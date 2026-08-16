@@ -1,5 +1,5 @@
 import { ArrowLeftRight } from "lucide-react";
-import { Badge } from "../ui/Badge";
+import { Tabs } from "../ui";
 
 interface HeaderBannerProps {
   activeTab: "forward" | "reverse";
@@ -26,31 +26,15 @@ export function HeaderBanner({ activeTab, onTabChange }: HeaderBannerProps) {
       </div>
 
       {/* Tab Switcher (Forward vs Reverse) */}
-      <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-xl border-2 border-[var(--neo-border)] w-full md:w-auto">
-        <button
-          onClick={() => onTabChange("forward")}
-          className={`neo-btn flex-1 md:flex-none px-4 py-2 text-xs font-black flex items-center justify-center gap-2 transition-all ${
-            activeTab === "forward"
-              ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)] shadow-[2px_2px_0px_0px_var(--neo-shadow)]"
-              : "bg-transparent text-[var(--neo-text)] border-transparent shadow-none"
-          }`}
-        >
-          <span>ADB Forward</span>
-          <Badge variant="secondary">Host → Device</Badge>
-        </button>
-
-        <button
-          onClick={() => onTabChange("reverse")}
-          className={`neo-btn flex-1 md:flex-none px-4 py-2 text-xs font-black flex items-center justify-center gap-2 transition-all ${
-            activeTab === "reverse"
-              ? "bg-cyan-300 text-black shadow-[2px_2px_0px_0px_var(--neo-shadow)]"
-              : "bg-transparent text-[var(--neo-text)] border-transparent shadow-none"
-          }`}
-        >
-          <span>ADB Reverse</span>
-          <Badge variant="accent">Device → Host</Badge>
-        </button>
-      </div>
+      <Tabs
+        activeTab={activeTab}
+        onChange={onTabChange}
+        variant="buttons"
+        tabs={[
+          { id: "forward", label: "ADB Forward", badge: "Host → Device" },
+          { id: "reverse", label: "ADB Reverse", badge: "Device → Host" },
+        ]}
+      />
     </div>
   );
 }

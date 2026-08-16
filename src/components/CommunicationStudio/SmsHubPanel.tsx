@@ -1,14 +1,11 @@
 import React, { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { SmsItem } from "./types";
-import { Badge } from "../ui/Badge";
-import { Button } from "../ui/Button";
-import { Input } from "../ui/Input";
+import { Badge, Button, Input, SearchInput, Tabs, EmptyState } from "../ui";
 import {
   MessageSquare,
   Send,
   RefreshCw,
-  Search,
   Clock,
   ArrowUpRight,
   ArrowDownLeft,
@@ -83,32 +80,32 @@ export const SmsHubPanel: React.FC<SmsHubPanelProps> = ({
       {/* Left 2 Cols: SMS History / Threads */}
       <div className="lg:col-span-2 space-y-4">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 neo-box p-3 bg-black/10">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search SMS messages / sender..."
-            className="w-full sm:w-64"
-            icon={<Search className="h-4 w-4" />}
-          />
+          <div className="w-full sm:w-64">
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder="Search SMS messages / sender..."
+            />
+          </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-            <div className="flex gap-1">
-              {["all", "inbox", "sent"].map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setFilterType(t)}
-                  className={`neo-box px-2.5 py-1 text-xs font-black uppercase transition-all cursor-pointer ${
-                    filterType === t
-                      ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)]"
-                      : "bg-black/10 text-[var(--neo-text)]"
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-            <Button size="sm" variant="ghost" icon={<RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />} onClick={onRefresh}>
+            <Tabs
+              size="sm"
+              variant="compact"
+              activeTab={filterType}
+              onChange={setFilterType}
+              tabs={[
+                { id: "all", label: "All" },
+                { id: "inbox", label: "Inbox" },
+                { id: "sent", label: "Sent" },
+              ]}
+            />
+            <Button
+              size="sm"
+              variant="ghost"
+              icon={<RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />}
+              onClick={onRefresh}
+            >
               Refresh
             </Button>
           </div>
@@ -116,11 +113,11 @@ export const SmsHubPanel: React.FC<SmsHubPanelProps> = ({
 
         {/* SMS List */}
         {filteredSms.length === 0 ? (
-          <div className="neo-box p-8 text-center bg-[var(--neo-card-bg)]">
-            <MessageSquare className="h-8 w-8 text-[var(--neo-text-muted)] mx-auto mb-2 opacity-50" />
-            <p className="text-xs font-black uppercase text-[var(--neo-text)]">No SMS messages found</p>
-            <p className="text-[11px] text-[var(--neo-text-muted)]">Incoming and sent SMS logs will be listed here.</p>
-          </div>
+          <EmptyState
+            title="No SMS Messages Found"
+            description="Incoming and sent SMS logs will be listed here."
+            icon={<MessageSquare className="h-8 w-8 text-[var(--neo-primary)]" />}
+          />
         ) : (
           <div className="space-y-2.5 max-h-[500px] overflow-y-auto custom-scrollbar p-1">
             {filteredSms.map((sms) => {
@@ -185,7 +182,7 @@ export const SmsHubPanel: React.FC<SmsHubPanelProps> = ({
                 placeholder="Type SMS text message to dispatch via phone..."
                 rows={4}
                 required
-                className="w-full neo-box p-2.5 text-xs bg-[var(--neo-bg)] text-[var(--neo-text)] focus:outline-none focus:ring-1 focus:ring-[var(--neo-primary)] resize-none"
+                className="w-full neo-input p-2.5 text-xs bg-[var(--neo-bg)] text-[var(--neo-text)] resize-none"
               />
             </div>
 

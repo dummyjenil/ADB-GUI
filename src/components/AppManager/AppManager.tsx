@@ -7,9 +7,7 @@ import { AppTable } from "./AppTable";
 import { PackageDetailModal } from "./PackageDetailModal";
 import { AdvancedPmPanel } from "./AdvancedPmPanel";
 import { PermissionsMatrixModal } from "./PermissionsMatrixModal";
-import { Card } from "../ui/Card";
-import { Button } from "../ui/Button";
-import { EmptyState } from "../ui/EmptyState";
+import { Card, Button, EmptyState } from "../ui";
 import {
   Package,
   UploadCloud,

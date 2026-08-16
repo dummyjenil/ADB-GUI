@@ -1,16 +1,13 @@
 import React, { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { CallLogItem } from "./types";
-import { Badge } from "../ui/Badge";
-import { Button } from "../ui/Button";
-import { Input } from "../ui/Input";
+import { Badge, Button, Input, SearchInput, Tabs, EmptyState } from "../ui";
 import {
   Phone,
   PhoneIncoming,
   PhoneOutgoing,
   PhoneMissed,
   PhoneOff,
-  Search,
   RefreshCw,
   Clock,
   PhoneCall,
@@ -116,44 +113,45 @@ export const CallLogsPanel: React.FC<CallLogsPanelProps> = ({
         </div>
 
         <div className="flex items-center gap-2 w-full md:w-auto justify-end">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search call logs..."
-            className="w-full sm:w-48"
-            icon={<Search className="h-4 w-4" />}
-          />
-          <Button size="sm" variant="ghost" icon={<RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />} onClick={onRefresh}>
+          <div className="w-full sm:w-48">
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder="Search call logs..."
+            />
+          </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />}
+            onClick={onRefresh}
+          >
             Refresh
           </Button>
         </div>
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex flex-wrap gap-1.5">
-        {["all", "incoming", "outgoing", "missed"].map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setFilterType(t)}
-            className={`neo-box px-3 py-1 text-xs font-black uppercase transition-all cursor-pointer ${
-              filterType === t
-                ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)]"
-                : "bg-black/10 text-[var(--neo-text)] hover:bg-black/20"
-            }`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        size="sm"
+        variant="compact"
+        activeTab={filterType}
+        onChange={setFilterType}
+        tabs={[
+          { id: "all", label: "All Logs" },
+          { id: "incoming", label: "Incoming" },
+          { id: "outgoing", label: "Outgoing" },
+          { id: "missed", label: "Missed" },
+        ]}
+      />
 
       {/* Call History List */}
       {filteredLogs.length === 0 ? (
-        <div className="neo-box p-8 text-center bg-[var(--neo-card-bg)]">
-          <Phone className="h-8 w-8 text-[var(--neo-text-muted)] mx-auto mb-2 opacity-50" />
-          <p className="text-xs font-black uppercase text-[var(--neo-text)]">No call logs found</p>
-          <p className="text-[11px] text-[var(--neo-text-muted)]">Call records or matches will appear here.</p>
-        </div>
+        <EmptyState
+          title="No Call Logs Found"
+          description="Call records or matches will appear here."
+          icon={<Phone className="h-8 w-8 text-[var(--neo-primary)]" />}
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[520px] overflow-y-auto custom-scrollbar p-1">
           {filteredLogs.map((log) => (

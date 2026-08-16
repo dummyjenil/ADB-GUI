@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
-import { Camera, Video, Download, StopCircle, Play, Film, Image as ImageIcon, CheckCircle, AlertCircle } from "lucide-react";
-import { Card } from "../ui/Card";
-import { Button } from "../ui/Button";
-import { Badge } from "../ui/Badge";
-import { Select } from "../ui/Select";
+import { Camera, Video, Download, StopCircle, Play, Film, Image as ImageIcon, CheckCircle } from "lucide-react";
+import { Card, Button, Badge, Select, EmptyState, Alert } from "../ui";
 
 interface ScreenshotResult {
   success: boolean;
@@ -165,11 +162,10 @@ export const ScreenStudio: React.FC<ScreenStudioProps> = ({ activeDevice }) => {
 
   if (!activeDevice) {
     return (
-      <Card headerTitle="Screen & Record Studio" headerIcon={<Film className="h-5 w-5" />} headerVariant="accent">
-        <div className="text-center py-12 text-[var(--neo-text-muted)] font-bold">
-          No device selected. Please select a connected Android device from the top bar.
-        </div>
-      </Card>
+      <EmptyState
+        title="No Active Device Selected"
+        description="Please select a connected Android device from the top navigation bar to access Screen & Recording features."
+      />
     );
   }
 
@@ -191,20 +187,13 @@ export const ScreenStudio: React.FC<ScreenStudioProps> = ({ activeDevice }) => {
         </p>
 
         {statusMsg && (
-          <div
-            className={`neo-box p-3 mb-4 flex items-center justify-between text-xs font-bold ${
-              statusMsg.type === "success"
-                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500"
-                : "bg-red-500/20 text-red-300 border-red-500"
-            }`}
-          >
-            <span className="flex items-center gap-2">
-              {statusMsg.type === "success" ? <CheckCircle className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
+          <div className="mb-4">
+            <Alert
+              variant={statusMsg.type === "success" ? "success" : "danger"}
+              onClose={() => setStatusMsg(null)}
+            >
               {statusMsg.text}
-            </span>
-            <button onClick={() => setStatusMsg(null)} className="text-xs hover:underline opacity-80">
-              Dismiss
-            </button>
+            </Alert>
           </div>
         )}
 

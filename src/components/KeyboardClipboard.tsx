@@ -1,9 +1,6 @@
 import React, { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Card } from "./ui/Card";
-import { Button } from "./ui/Button";
-import { Input, Textarea } from "./ui/Input";
-import { EmptyState } from "./ui/EmptyState";
+import { Card, Button, Input, Textarea, EmptyState, Toast } from "./ui";
 import {
   Keyboard,
   ClipboardCopy,
@@ -14,7 +11,6 @@ import {
   Copy,
   Download,
   Upload,
-  CheckCircle2,
   Terminal,
 } from "lucide-react";
 import { CommandPreview } from "../types/terminal";
@@ -267,12 +263,11 @@ export const KeyboardClipboard: React.FC<KeyboardClipboardProps> = ({ activeDevi
         </div>
       </Card>
 
-      {statusMsg && (
-        <div className="fixed bottom-6 right-6 neo-box px-4 py-2.5 bg-[var(--neo-primary)] text-[var(--neo-primary-text)] text-xs font-black flex items-center gap-2 animate-neo-slide z-50">
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-          <span>{statusMsg}</span>
-        </div>
-      )}
+      <Toast
+        message={statusMsg}
+        type="success"
+        onClose={() => setStatusMsg(null)}
+      />
     </div>
   );
 };

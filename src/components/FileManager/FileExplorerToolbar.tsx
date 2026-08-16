@@ -1,7 +1,6 @@
 import React from "react";
 import {
   ChevronRight,
-  Search,
   FolderPlus,
   Upload,
   Download,
@@ -10,6 +9,7 @@ import {
   Trash2,
   RefreshCw,
 } from "lucide-react";
+import { Button, SearchInput } from "../ui";
 
 interface FileExplorerToolbarProps {
   currentPath: string;
@@ -57,16 +57,17 @@ export const FileExplorerToolbar: React.FC<FileExplorerToolbarProps> = ({
       {/* Navigation & Search bar */}
       <div className="flex flex-col sm:flex-row gap-2">
         <form onSubmit={onPathSubmit} className="flex-1 flex gap-2">
-          <button
+          <Button
             type="button"
+            size="sm"
+            variant="ghost"
             onClick={onNavigateUp}
             disabled={currentPath === "/"}
-            className="neo-btn px-3 py-2 text-xs font-extrabold flex items-center gap-1 disabled:opacity-40"
+            icon={<ChevronRight className="h-4 w-4 rotate-180" />}
             title="Go to Parent Directory"
           >
-            <ChevronRight className="h-4 w-4 rotate-180" />
-            <span>Up</span>
-          </button>
+            Up
+          </Button>
 
           <div className="flex-1 relative flex items-center">
             <input
@@ -78,23 +79,17 @@ export const FileExplorerToolbar: React.FC<FileExplorerToolbarProps> = ({
             />
           </div>
 
-          <button
-            type="submit"
-            className="neo-btn px-3 py-2 text-xs font-black bg-[var(--neo-primary)] text-[var(--neo-primary-text)]"
-          >
+          <Button type="submit" size="sm" variant="primary">
             Go
-          </button>
+          </Button>
         </form>
 
         {/* Search Box */}
-        <div className="relative w-full sm:w-56">
-          <Search className="h-3.5 w-3.5 absolute left-3 top-3 text-[var(--neo-text-muted)]" />
-          <input
-            type="text"
+        <div className="w-full sm:w-56">
+          <SearchInput
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={setSearchQuery}
             placeholder="Filter current folder..."
-            className="w-full neo-input text-xs py-2 pl-8 pr-3 bg-[var(--neo-bg)]"
           />
         </div>
       </div>
@@ -102,79 +97,87 @@ export const FileExplorerToolbar: React.FC<FileExplorerToolbarProps> = ({
       {/* Action Buttons Bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--neo-border)] pt-2.5">
         <div className="flex flex-wrap items-center gap-2">
-          <button
+          <Button
+            size="sm"
+            variant="ghost"
             onClick={onOpenFolderModal}
-            className="neo-btn px-3 py-1.5 text-xs font-extrabold flex items-center gap-1.5 bg-[var(--neo-bg)]"
+            icon={<FolderPlus className="h-3.5 w-3.5 text-amber-400" />}
           >
-            <FolderPlus className="h-3.5 w-3.5 text-amber-400" />
-            <span>New Folder</span>
-          </button>
+            New Folder
+          </Button>
 
-          <button
+          <Button
+            size="sm"
+            variant="ghost"
             onClick={onPushFile}
-            className="neo-btn px-3 py-1.5 text-xs font-extrabold flex items-center gap-1.5 bg-[var(--neo-bg)]"
+            icon={<Upload className="h-3.5 w-3.5 text-emerald-400" />}
             title="Upload single or multiple files from PC to ADB device"
           >
-            <Upload className="h-3.5 w-3.5 text-emerald-400" />
-            <span>Push / Upload Files</span>
-          </button>
+            Push / Upload Files
+          </Button>
 
           {/* Batch Download / Copy / Move / Delete */}
           {selectedCount > 0 && (
             <>
-              <button
+              <Button
+                size="sm"
+                variant="cyan"
                 onClick={onPullSelected}
-                className="neo-btn px-2.5 py-1.5 text-xs font-bold flex items-center gap-1 bg-teal-500/10 text-teal-400"
+                icon={<Download className="h-3.5 w-3.5" />}
                 title="Download selected items to local PC folder"
               >
-                <Download className="h-3.5 w-3.5" />
-                <span>Pull / Download ({selectedCount})</span>
-              </button>
+                Pull ({selectedCount})
+              </Button>
 
-              <button
+              <Button
+                size="sm"
+                variant="secondary"
                 onClick={onCopySelected}
-                className="neo-btn px-2.5 py-1.5 text-xs font-bold flex items-center gap-1 bg-blue-500/10 text-blue-400"
+                icon={<Copy className="h-3.5 w-3.5" />}
               >
-                <Copy className="h-3.5 w-3.5" />
-                <span>Copy ({selectedCount})</span>
-              </button>
+                Copy ({selectedCount})
+              </Button>
 
-              <button
+              <Button
+                size="sm"
+                variant="accent"
                 onClick={onMoveSelected}
-                className="neo-btn px-2.5 py-1.5 text-xs font-bold flex items-center gap-1 bg-purple-500/10 text-purple-400"
+                icon={<Move className="h-3.5 w-3.5" />}
               >
-                <Move className="h-3.5 w-3.5" />
-                <span>Move ({selectedCount})</span>
-              </button>
+                Move ({selectedCount})
+              </Button>
 
-              <button
+              <Button
+                size="sm"
+                variant="rose"
                 onClick={onDeleteSelected}
-                className="neo-btn px-2.5 py-1.5 text-xs font-bold flex items-center gap-1 bg-red-500/10 text-red-400"
+                icon={<Trash2 className="h-3.5 w-3.5" />}
               >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span>Delete ({selectedCount})</span>
-              </button>
+                Delete ({selectedCount})
+              </Button>
             </>
           )}
 
           {clipboardAction && (
-            <button
+            <Button
+              size="sm"
+              variant="primary"
               onClick={onPaste}
-              className="neo-btn px-3 py-1.5 text-xs font-black bg-emerald-500 text-white animate-pulse"
+              className="animate-pulse"
             >
               Paste {clipboardAction.paths.length} item(s) here ({clipboardAction.type})
-            </button>
+            </Button>
           )}
         </div>
 
-        <button
+        <Button
+          size="sm"
+          variant="ghost"
           onClick={onRefresh}
           disabled={loading}
-          className="neo-btn p-1.5 text-xs font-bold flex items-center gap-1"
+          icon={<RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />}
           title="Refresh Directory"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-        </button>
+        />
       </div>
     </div>
   );

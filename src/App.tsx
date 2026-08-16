@@ -17,7 +17,7 @@ import { NotificationHub } from "./components/NotificationHub/NotificationHub";
 import { CommunicationStudio } from "./components/CommunicationStudio/CommunicationStudio";
 import { CommandPreviewModal } from "./components/CommandPreviewModal";
 import { Smartphone, Zap, Keyboard, Package, Folder, Monitor, Terminal, FileText, ArrowLeftRight, Camera, Layers, Bell, PhoneCall } from "lucide-react";
-import { Badge } from "./components/ui/Badge";
+import { Badge } from "./components/ui";
 import { CommandPreview } from "./types/terminal";
 
 type Tab =

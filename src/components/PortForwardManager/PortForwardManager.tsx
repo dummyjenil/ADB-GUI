@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { Alert } from "../ui";
 import { PortMapping, SpecType, PresetItem, SavedProfile, PortForwardManagerProps } from "./types";
 import { HeaderBanner } from "./HeaderBanner";
 import { QuickPresetsBar } from "./QuickPresetsBar";
@@ -295,19 +295,8 @@ export function PortForwardManager({ activeDevice, onViewCommand }: PortForwardM
       />
 
       {/* Notifications / Feedback */}
-      {error && (
-        <div className="neo-box p-3 bg-red-500/20 border-red-500 text-red-300 text-xs font-bold flex items-center gap-2">
-          <XCircle className="h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {successMsg && (
-        <div className="neo-box p-3 bg-emerald-500/20 border-emerald-500 text-emerald-300 text-xs font-bold flex items-center gap-2">
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
-          <span>{successMsg}</span>
-        </div>
-      )}
+      {error && <Alert variant="danger" onClose={() => setError(null)}>{error}</Alert>}
+      {successMsg && <Alert variant="success" onClose={() => setSuccessMsg(null)}>{successMsg}</Alert>}
 
       {/* Saved Rule Profiles Bar */}
       <SavedProfilesBar

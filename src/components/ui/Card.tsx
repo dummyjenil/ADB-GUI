@@ -1,21 +1,27 @@
 import React from "react";
 
-interface CardProps {
+export interface CardProps {
   children: React.ReactNode;
   className?: string;
+  bodyClassName?: string;
   headerTitle?: React.ReactNode;
   headerIcon?: React.ReactNode;
   headerAction?: React.ReactNode;
   headerVariant?: "primary" | "secondary" | "accent" | "dark";
+  footer?: React.ReactNode;
+  noPadding?: boolean;
 }
 
 export const Card: React.FC<CardProps> = ({
   children,
   className = "",
+  bodyClassName = "",
   headerTitle,
   headerIcon,
   headerAction,
   headerVariant = "primary",
+  footer,
+  noPadding = false,
 }) => {
   const headerVariants = {
     primary: "bg-[var(--neo-primary)] text-[var(--neo-primary-text)]",
@@ -32,15 +38,23 @@ export const Card: React.FC<CardProps> = ({
             headerVariants[headerVariant]
           }`}
         >
-          <div className="flex items-center gap-2.5 text-sm uppercase tracking-wide">
+          <div className="flex items-center gap-2.5 text-xs sm:text-sm uppercase tracking-wide truncate">
             {headerIcon}
-            <span>{headerTitle}</span>
+            <span className="truncate">{headerTitle}</span>
           </div>
-          {headerAction && <div>{headerAction}</div>}
+          {headerAction && <div className="shrink-0">{headerAction}</div>}
         </div>
       )}
 
-      <div className="p-5">{children}</div>
+      <div className={noPadding ? bodyClassName : `p-4 sm:p-5 ${bodyClassName}`}>
+        {children}
+      </div>
+
+      {footer && (
+        <div className="p-3.5 border-t-2 border-[var(--neo-border)] bg-black/10 flex items-center justify-between">
+          {footer}
+        </div>
+      )}
     </div>
   );
 };

@@ -1,4 +1,6 @@
 import React from "react";
+import { Modal, Input, Button } from "../ui";
+import { Edit2 } from "lucide-react";
 
 interface RenameModalProps {
   renameValue: string;
@@ -14,29 +16,38 @@ export const RenameModal: React.FC<RenameModalProps> = ({
   onRename,
 }) => {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="neo-box w-full max-w-sm bg-[var(--neo-card-bg)] p-5 space-y-4">
-        <h3 className="text-base font-extrabold">Rename File / Folder</h3>
-        <input
-          type="text"
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title="Rename File / Folder"
+      icon={<Edit2 className="h-4 w-4" />}
+      maxWidth="max-w-sm"
+      footer={
+        <>
+          <Button size="sm" variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button size="sm" variant="primary" onClick={onRename} disabled={!renameValue.trim()}>
+            Rename
+          </Button>
+        </>
+      }
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (renameValue.trim()) onRename();
+        }}
+        className="space-y-3"
+      >
+        <Input
           value={renameValue}
           onChange={(e) => setRenameValue(e.target.value)}
           placeholder="New Name"
-          className="w-full neo-input text-xs py-2 px-3 bg-[var(--neo-bg)]"
           autoFocus
+          required
         />
-        <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="neo-btn px-3 py-1.5 text-xs font-bold">
-            Cancel
-          </button>
-          <button
-            onClick={onRename}
-            className="neo-btn px-3 py-1.5 text-xs font-black bg-[var(--neo-primary)] text-[var(--neo-primary-text)]"
-          >
-            Rename
-          </button>
-        </div>
-      </div>
-    </div>
+      </form>
+    </Modal>
   );
 };

@@ -1,12 +1,9 @@
 import React, { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { PackageInfo } from "../../types/app_manager";
-import { Modal } from "../ui/Modal";
-import { Input } from "../ui/Input";
-import { Button } from "../ui/Button";
+import { Modal, SearchInput, Button, Tabs, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "../ui";
 import {
   ShieldCheck,
-  Search,
   Camera,
   Mic,
   MapPin,
@@ -86,6 +83,11 @@ export const PermissionsMatrixModal: React.FC<PermissionsMatrixModalProps> = ({
       title="App Permissions & Runtime Matrix"
       icon={<ShieldCheck className="h-5 w-5 text-emerald-400" />}
       maxWidth="max-w-5xl"
+      footer={
+        <Button size="sm" variant="primary" onClick={onClose}>
+          Done
+        </Button>
+      }
     >
       <div className="space-y-4">
         <p className="text-xs text-[var(--neo-text-muted)] font-medium">
@@ -94,61 +96,56 @@ export const PermissionsMatrixModal: React.FC<PermissionsMatrixModalProps> = ({
 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 neo-box p-3 bg-black/10">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search apps..."
-            className="w-full sm:w-64"
-            icon={<Search className="h-4 w-4" />}
-          />
-
-          <div className="flex items-center gap-1.5">
-            {(["user", "system", "all"] as const).map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setAppTypeFilter(mode)}
-                className={`neo-box px-3 py-1 text-xs font-black uppercase transition-all cursor-pointer ${
-                  appTypeFilter === mode
-                    ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)]"
-                    : "bg-black/10 text-[var(--neo-text)]"
-                }`}
-              >
-                {mode} Apps
-              </button>
-            ))}
+          <div className="w-full sm:w-64">
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder="Search apps..."
+            />
           </div>
+
+          <Tabs
+            size="sm"
+            variant="compact"
+            activeTab={appTypeFilter}
+            onChange={setAppTypeFilter}
+            tabs={[
+              { id: "user", label: "User Apps" },
+              { id: "system", label: "System Apps" },
+              { id: "all", label: "All Apps" },
+            ]}
+          />
         </div>
 
         {/* Matrix Table */}
-        <div className="max-h-[500px] overflow-x-auto overflow-y-auto border-2 border-[var(--neo-border)] custom-scrollbar">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-black/20 text-[var(--neo-text)] sticky top-0 uppercase text-[10px] font-black z-10">
+        <div className="max-h-[480px] overflow-y-auto custom-scrollbar">
+          <Table>
+            <TableHeader>
               <tr>
-                <th className="p-3 border-b-2 border-[var(--neo-border)]">Application</th>
+                <TableHead>Application</TableHead>
                 {CRITICAL_PERMS.map((p) => (
-                  <th key={p.key} className="p-2 border-b-2 border-[var(--neo-border)] text-center">
+                  <TableHead key={p.key} className="text-center">
                     <div className="flex flex-col items-center gap-1">
                       {p.icon}
                       <span>{p.label}</span>
                     </div>
-                  </th>
+                  </TableHead>
                 ))}
               </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--neo-border)] bg-[var(--neo-card-bg)]">
+            </TableHeader>
+            <TableBody>
               {filteredApps.slice(0, 50).map((app) => (
-                <tr key={app.package_name} className="hover:bg-black/5 transition-colors">
-                  <td className="p-3">
+                <TableRow key={app.package_name}>
+                  <TableCell>
                     <div className="font-bold text-[var(--neo-text)] truncate max-w-[200px]">{app.name}</div>
                     <div className="text-[10px] font-mono text-[var(--neo-text-muted)] truncate max-w-[200px]">
                       {app.package_name}
                     </div>
-                  </td>
+                  </TableCell>
                   {CRITICAL_PERMS.map((p) => {
                     const isBusy = loadingPkg === `${app.package_name}-${p.key}`;
                     return (
-                      <td key={p.key} className="p-2 text-center">
+                      <TableCell key={p.key} className="text-center">
                         <div className="flex items-center justify-center gap-1">
                           <button
                             type="button"
@@ -169,19 +166,13 @@ export const PermissionsMatrixModal: React.FC<PermissionsMatrixModalProps> = ({
                             <X className="h-3 w-3" />
                           </button>
                         </div>
-                      </td>
+                      </TableCell>
                     );
                   })}
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="flex justify-end pt-2">
-          <Button size="sm" variant="primary" onClick={onClose}>
-            Done
-          </Button>
+            </TableBody>
+          </Table>
         </div>
       </div>
     </Modal>

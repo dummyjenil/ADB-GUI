@@ -1,1 +1,2 @@
-Screen Recorder , NOtification remover,CROSS-DEVICE CLIPBOARD SYNC,ADVANCED PM (PACKAGE MANAGER) SHELL TOOL OUTPUT MISSING
+Screen Recorder , NOtification remover,CROSS-DEVICE CLIPBOARD SYNC
+alarm mute nahi hotaa

@@ -3,10 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { PackageInfo, PackageDetails } from "../../types/app_manager";
 import { PermissionsManagerPanel } from "./PermissionsManagerPanel";
 import { ActivityIntentManagerPanel } from "./ActivityIntentManagerPanel";
-import { Badge } from "../ui/Badge";
-import { Button } from "../ui/Button";
+import { Modal, Tabs, Badge, Button, SearchInput } from "../ui";
 import {
-  X,
   Play,
   Square,
   Trash2,
@@ -20,7 +18,6 @@ import {
   Zap,
   Archive,
   Layers,
-  Search,
   Rocket,
   Terminal,
 } from "lucide-react";
@@ -126,6 +123,7 @@ export const PackageDetailModal: React.FC<PackageDetailModalProps> = ({
         invoke("uninstall_package", {
           serial: activeDevice,
           packageName: packageInfo.package_name,
+          keepData: false,
           userOnly,
         }),
       userOnly ? "Uninstalled for User" : "Uninstalled System-Wide"
@@ -177,31 +175,28 @@ export const PackageDetailModal: React.FC<PackageDetailModalProps> = ({
     return list.filter((item) => item.toLowerCase().includes(q));
   };
 
+  const modalTitle = (
+    <div className="flex items-center gap-2.5 min-w-0">
+      <div className="h-7 w-7 neo-box flex items-center justify-center font-black text-sm bg-[var(--neo-bg)] text-[var(--neo-text)] shrink-0">
+        {packageInfo.name.charAt(0).toUpperCase()}
+      </div>
+      <div className="min-w-0">
+        <span className="font-extrabold text-sm uppercase tracking-wide truncate block">{packageInfo.name}</span>
+        <span className="text-[10px] font-mono opacity-80 truncate block">{packageInfo.package_name}</span>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/65 backdrop-blur-xs animate-in fade-in">
-      <div className="neo-box w-full max-w-4xl max-h-[88vh] bg-[var(--neo-card-bg)] flex flex-col shadow-[8px_8px_0px_0px_var(--neo-shadow)] overflow-hidden font-sans">
-        {/* Header */}
-        <div className="p-4 bg-[var(--neo-primary)] text-[var(--neo-primary-text)] border-b-2 border-[var(--neo-border)] flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 neo-box flex items-center justify-center font-black text-xl bg-[var(--neo-bg)] text-[var(--neo-text)] shrink-0 shadow-xs">
-              {packageInfo.name.charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <h3 className="font-extrabold text-lg uppercase tracking-wide leading-tight">{packageInfo.name}</h3>
-              <p className="text-xs font-mono opacity-90 select-all">{packageInfo.package_name}</p>
-            </div>
-          </div>
-
-          <button
-            onClick={onClose}
-            className="neo-btn p-1.5 bg-black/20 hover:bg-black/40 text-white rounded border border-black"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title={modalTitle}
+      maxWidth="max-w-4xl"
+    >
+      <div className="space-y-4 font-sans">
         {/* Quick Actions Bar */}
-        <div className="p-3 bg-black/10 border-b-2 border-[var(--neo-border)] flex items-center gap-2 overflow-x-auto custom-scrollbar shrink-0">
+        <div className="p-2.5 bg-black/10 neo-box-sm flex items-center gap-2 overflow-x-auto custom-scrollbar shrink-0">
           <Button size="sm" variant="primary" icon={<Play className="h-3.5 w-3.5" />} onClick={handleLaunch} disabled={actionLoading}>
             Launch
           </Button>
@@ -232,7 +227,7 @@ export const PackageDetailModal: React.FC<PackageDetailModalProps> = ({
               }}
               title="Open Logcat Studio filtered for this package"
             >
-              Logcat Studio
+              Logcat
             </Button>
           )}
 
@@ -250,7 +245,7 @@ export const PackageDetailModal: React.FC<PackageDetailModalProps> = ({
                 })
               }
             >
-              View Command
+              Command
             </Button>
           )}
 
@@ -270,34 +265,26 @@ export const PackageDetailModal: React.FC<PackageDetailModalProps> = ({
         </div>
 
         {/* Tabs Navigation */}
-        <div className="flex items-center gap-2 px-4 pt-3 border-b border-[var(--neo-border)] shrink-0 bg-[var(--neo-bg)] overflow-x-auto custom-scrollbar">
-          {[
+        <Tabs
+          size="sm"
+          variant="compact"
+          activeTab={activeTab}
+          onChange={setActiveTab}
+          tabs={[
             { id: "overview", label: "Overview", icon: <FileText className="h-3.5 w-3.5" /> },
             { id: "permissions", label: "Permissions & AppOps", icon: <ShieldCheck className="h-3.5 w-3.5" /> },
             { id: "intents", label: `Activities & Intents (${details?.activities.length || 0})`, icon: <Rocket className="h-3.5 w-3.5" /> },
             {
               id: "components",
-              label: `All Components (${(details?.activities.length || 0) + (details?.services.length || 0) + (details?.receivers.length || 0) + (details?.providers.length || 0)})`,
+              label: `Components (${(details?.activities.length || 0) + (details?.services.length || 0) + (details?.receivers.length || 0) + (details?.providers.length || 0)})`,
               icon: <Cpu className="h-3.5 w-3.5" />,
             },
             { id: "raw", label: "Raw Dumpsys", icon: <Layers className="h-3.5 w-3.5" /> },
-          ].map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id as Tab)}
-              className={`px-3 py-2 text-xs font-bold flex items-center gap-1.5 border-b-2 transition-all whitespace-nowrap ${
-                activeTab === t.id
-                  ? "border-[var(--neo-primary)] text-[var(--neo-primary)] font-black"
-                  : "border-transparent text-[var(--neo-text-muted)] hover:text-[var(--neo-text)]"
-              }`}
-            >
-              {t.icon} {t.label}
-            </button>
-          ))}
-        </div>
+          ]}
+        />
 
         {/* Tab Body */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 custom-scrollbar bg-[var(--neo-card-bg)] text-[var(--neo-text)]">
+        <div className="min-h-0 overflow-y-auto p-1 custom-scrollbar text-[var(--neo-text)]">
           {loading ? (
             <div className="p-12 text-center space-y-2">
               <div className="animate-spin h-6 w-6 border-3 border-[var(--neo-primary)] border-t-transparent rounded-full mx-auto" />
@@ -379,20 +366,14 @@ export const PackageDetailModal: React.FC<PackageDetailModalProps> = ({
                 />
               )}
 
-
               {activeTab === "components" && (
                 <div className="space-y-4">
                   {/* Component Filter Search Input */}
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--neo-text-muted)] pointer-events-none" />
-                    <input
-                      type="text"
-                      placeholder="Filter components (e.g. WatchWhile, Service, Receiver)..."
-                      value={componentSearch}
-                      onChange={(e) => setComponentSearch(e.target.value)}
-                      className="w-full pl-9 pr-4 py-1.5 text-xs font-bold neo-box bg-[var(--neo-bg)] text-[var(--neo-text)] border-2 border-[var(--neo-border)]"
-                    />
-                  </div>
+                  <SearchInput
+                    placeholder="Filter components (e.g. Activity, Service, Receiver)..."
+                    value={componentSearch}
+                    onChange={setComponentSearch}
+                  />
 
                   <div className="space-y-4 text-xs font-medium">
                     {/* Activities */}
@@ -471,6 +452,6 @@ export const PackageDetailModal: React.FC<PackageDetailModalProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };

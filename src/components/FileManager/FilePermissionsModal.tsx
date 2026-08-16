@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { DeviceFile } from "../../types/fileManager";
-import { X, Shield, Check } from "lucide-react";
+import { Shield, Check } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { Modal, Button, Alert } from "../ui";
 
 interface PermissionsModalProps {
   serial: string;
@@ -18,7 +19,6 @@ export const FilePermissionsModal: React.FC<PermissionsModalProps> = ({
 }) => {
   // Parse permissions string like "-rwxr-xr-x" or "755"
   const parsePerms = (str: string) => {
-    // Default 755
     let u = { r: true, w: true, x: true };
     let g = { r: true, w: false, x: true };
     let o = { r: true, w: false, x: true };
@@ -71,32 +71,37 @@ export const FilePermissionsModal: React.FC<PermissionsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="neo-box w-full max-w-md bg-[var(--neo-card-bg)] p-6 shadow-2xl space-y-5">
-        <div className="flex items-center justify-between border-b border-[var(--neo-border)] pb-3">
-          <div className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-[var(--neo-primary)]" />
-            <h3 className="text-base font-extrabold text-[var(--neo-text)]">File Permissions</h3>
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title="File Permissions"
+      icon={<Shield className="h-5 w-5 text-[var(--neo-primary)]" />}
+      maxWidth="max-w-md"
+      footer={
+        <div className="flex items-center justify-between w-full">
+          <div className="text-xs font-mono">
+            Octal Mode: <span className="font-black text-[var(--neo-primary)]">{octalMode}</span>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-black/10 rounded transition-colors"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
 
+          <div className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button size="sm" variant="primary" loading={loading} onClick={handleSave}>
+              Apply Permissions
+            </Button>
+          </div>
+        </div>
+      }
+    >
+      <div className="space-y-4">
         <div>
           <div className="text-xs font-semibold text-[var(--neo-text-muted)]">Target File</div>
           <div className="text-sm font-bold text-[var(--neo-text)] truncate">{file.name}</div>
           <div className="text-[11px] font-mono text-[var(--neo-text-muted)] truncate">{file.path}</div>
         </div>
 
-        {error && (
-          <div className="p-3 text-xs bg-red-500/10 border border-red-500/30 text-red-400 rounded">
-            {error}
-          </div>
-        )}
+        {error && <Alert variant="danger">{error}</Alert>}
 
         {/* Matrix Grid */}
         <div className="space-y-3 neo-box p-3 bg-[var(--neo-bg)]">
@@ -115,6 +120,7 @@ export const FilePermissionsModal: React.FC<PermissionsModalProps> = ({
               {(["r", "w", "x"] as const).map((type) => (
                 <button
                   key={type}
+                  type="button"
                   onClick={() => handleToggle(scope, type)}
                   className={`neo-btn p-1.5 flex items-center justify-center transition-all ${
                     perms[scope][type]
@@ -128,29 +134,7 @@ export const FilePermissionsModal: React.FC<PermissionsModalProps> = ({
             </div>
           ))}
         </div>
-
-        <div className="flex items-center justify-between pt-2">
-          <div className="text-xs font-mono">
-            Octal Mode: <span className="font-black text-[var(--neo-primary)]">{octalMode}</span>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="neo-btn px-4 py-2 text-xs font-extrabold bg-transparent hover:bg-black/10"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={loading}
-              className="neo-btn px-4 py-2 text-xs font-black bg-[var(--neo-primary)] text-[var(--neo-primary-text)] disabled:opacity-50"
-            >
-              {loading ? "Saving..." : "Apply Permissions"}
-            </button>
-          </div>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 };

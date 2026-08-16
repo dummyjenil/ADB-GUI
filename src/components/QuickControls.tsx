@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Card } from "./ui/Card";
-import { EmptyState } from "./ui/EmptyState";
+import { Card, EmptyState, Toast } from "./ui";
 import {
   Power,
   Volume2,
@@ -9,8 +8,6 @@ import {
   Home,
   Sparkles,
   Terminal,
-  CheckCircle2,
-  AlertCircle,
 } from "lucide-react";
 import { CommandPreview } from "../types/terminal";
 import { QUICK_ACTIONS_REGISTRY } from "./QuickControls/registry";
@@ -193,23 +190,12 @@ export const QuickControls: React.FC<QuickControlsProps> = ({ activeDevice, onVi
       {/* Shortcuts & Broadcast Dialogs */}
       {renderSection("Shortcuts, URL & Notifications", <Sparkles className="h-5 w-5" />, "shortcuts", "primary")}
 
-      {/* Floating Status Notification Toast */}
-      {feedback && (
-        <div
-          className={`fixed bottom-6 right-6 neo-box px-4 py-2.5 text-xs font-black flex items-center gap-2 animate-neo-slide z-50 shadow-[4px_4px_0px_0px_var(--neo-shadow)] ${
-            feedback.type === "error"
-              ? "bg-rose-500 text-white border-2 border-black"
-              : "bg-[var(--neo-primary)] text-[var(--neo-primary-text)] border-2 border-black"
-          }`}
-        >
-          {feedback.type === "error" ? (
-            <AlertCircle className="h-4 w-4 shrink-0 text-white" />
-          ) : (
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-          )}
-          <span className="break-words max-w-sm">{feedback.text}</span>
-        </div>
-      )}
+      {/* Reusable Toast */}
+      <Toast
+        message={feedback?.text || null}
+        type={feedback?.type || "success"}
+        onClose={() => setFeedback(null)}
+      />
 
       {/* Modals */}
       <OpenUrlModal

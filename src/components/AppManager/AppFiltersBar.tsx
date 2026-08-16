@@ -1,7 +1,7 @@
 import React from "react";
 import { FilterOption } from "../../types/app_manager";
-import { Search, Filter, RefreshCw, X } from "lucide-react";
-import { Button } from "../ui/Button";
+import { Filter, RefreshCw, X } from "lucide-react";
+import { Button, SearchInput } from "../ui";
 
 interface AppFiltersBarProps {
   activeFilters: FilterOption[];
@@ -57,23 +57,20 @@ export const AppFiltersBar: React.FC<AppFiltersBarProps> = ({
     <div className="neo-box p-4 bg-[var(--neo-card-bg)] space-y-3.5">
       {/* Search & Refresh Toolbar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--neo-text-muted)] pointer-events-none" />
-          <input
-            type="text"
+        <div className="flex-1">
+          <SearchInput
             placeholder={
               activeFilters.includes("by_uid")
                 ? "Filter by UID (e.g. 10169 or u0_a169)..."
                 : "Search by App Label, Package Identifier, or UID..."
             }
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs font-bold neo-box bg-[var(--neo-bg)] text-[var(--neo-text)] border-2 border-[var(--neo-border)] focus:outline-none focus:ring-2 focus:ring-[var(--neo-primary)]"
+            onChange={setSearchQuery}
           />
         </div>
 
         <div className="flex items-center gap-2 shrink-0 justify-between sm:justify-end">
-          <span className="text-xs font-black uppercase text-[var(--neo-text-muted)] bg-black/10 px-3 py-1.5 rounded border border-black/20">
+          <span className="text-xs font-black uppercase text-[var(--neo-text-muted)] bg-black/10 px-3 py-1.5 rounded border border-black/20 font-mono">
             Showing {filteredCount} / {totalCount} Apps
           </span>
 
@@ -101,8 +98,9 @@ export const AppFiltersBar: React.FC<AppFiltersBarProps> = ({
           return (
             <button
               key={f.id}
+              type="button"
               onClick={() => handleToggleFilter(f.id)}
-              className={`shrink-0 px-3 py-1.5 text-xs font-extrabold transition-all rounded neo-btn flex items-center gap-1.5 ${
+              className={`shrink-0 px-3 py-1.5 text-xs font-extrabold transition-all rounded neo-btn flex items-center gap-1.5 cursor-pointer ${
                 isActive
                   ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)] border-[var(--neo-border)] shadow-[2px_2px_0px_0px_var(--neo-shadow)]"
                   : "bg-black/10 text-[var(--neo-text)] border-transparent hover:bg-black/20"
@@ -116,8 +114,9 @@ export const AppFiltersBar: React.FC<AppFiltersBarProps> = ({
 
         {!isAllActive && (
           <button
+            type="button"
             onClick={() => setActiveFilters([])}
-            className="shrink-0 px-2 py-1 text-[11px] font-black text-rose-500 hover:underline uppercase"
+            className="shrink-0 px-2 py-1 text-[11px] font-black text-rose-500 hover:underline uppercase cursor-pointer"
           >
             Reset Filters
           </button>

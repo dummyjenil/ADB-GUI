@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Card } from "./ui/Card";
-import { Badge } from "./ui/Badge";
-import { Button } from "./ui/Button";
-import { Input } from "./ui/Input";
+import {
+  Card,
+  Badge,
+  Button,
+  MetricCard,
+  SearchInput,
+  EmptyState,
+} from "./ui";
 import { PerformanceGraph, DataPoint } from "./PerformanceGraph";
 import {
   Smartphone,
@@ -15,7 +19,6 @@ import {
   Radio,
   Clock,
   ShieldCheck,
-  Search,
   Copy,
   Check,
   RefreshCw,
@@ -175,32 +178,12 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({ serial }) => {
 
   if (!serial) {
     return (
-      <Card headerTitle="Device Dashboard" headerIcon={<Smartphone className="h-5 w-5" />}>
-        <div className="text-center py-10 text-xs font-mono text-[var(--neo-text-muted)] uppercase">
-          Select an active ADB device to view telemetry & detailed properties.
-        </div>
-      </Card>
+      <EmptyState
+        title="No Active Device Selected"
+        description="Select an active ADB device to view telemetry & detailed properties."
+      />
     );
   }
-
-  // Neobrutalist Progress Bar helper
-  const ProgressBar = ({
-    value,
-    colorClass = "bg-[var(--neo-primary)]",
-  }: {
-    value: number;
-    colorClass?: string;
-  }) => {
-    const clamped = Math.min(Math.max(value, 0), 100);
-    return (
-      <div className="w-full bg-black/40 h-3.5 neo-box-sm overflow-hidden p-0.5 relative">
-        <div
-          className={`h-full rounded-sm transition-all duration-500 border-r-2 border-[var(--neo-border)] ${colorClass}`}
-          style={{ width: `${clamped}%` }}
-        />
-      </div>
-    );
-  };
 
   const allPropertiesList = details
     ? [
@@ -294,10 +277,11 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({ serial }) => {
                       key={int}
                       type="button"
                       onClick={() => setRefreshIntervalMs(int)}
-                      className={`px-2 py-0.5 text-xs font-mono rounded transition-colors ${refreshIntervalMs === int
-                        ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)] font-bold neo-box-sm"
-                        : "text-[var(--neo-text-muted)] hover:bg-black/20"
-                        }`}
+                      className={`px-2 py-0.5 text-xs font-mono rounded transition-colors cursor-pointer ${
+                        refreshIntervalMs === int
+                          ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)] font-bold neo-box-sm"
+                          : "text-[var(--neo-text-muted)] hover:bg-black/20"
+                      }`}
                     >
                       {int / 1000}s
                     </button>
@@ -309,7 +293,7 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({ serial }) => {
                 {!isMonitoring && (
                   <span className="text-[11px] font-mono text-amber-400 font-semibold flex items-center gap-1">
                     <Info className="h-3.5 w-3.5 shrink-0" />
-                    ADB Continuous Polling Idle
+                    ADB Polling Idle
                   </span>
                 )}
                 <Button
@@ -326,81 +310,45 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({ serial }) => {
 
             {/* Quick Metrics Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {/* Battery Card */}
-              <div className="neo-box-sm p-3 bg-[var(--neo-card-bg)] space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="flex items-center gap-1.5 text-[var(--neo-text-muted)]">
-                    <BatteryCharging className="h-4 w-4 text-emerald-400" />
-                    Battery
-                  </span>
-                  <span className="font-mono text-emerald-400">{health.battery_level}%</span>
-                </div>
-                <ProgressBar
-                  value={health.battery_level}
-                  colorClass={
-                    health.battery_level > 20 ? "bg-emerald-400" : "bg-rose-500"
-                  }
-                />
-                <div className="flex items-center justify-between text-[11px] font-mono text-[var(--neo-text-muted)]">
-                  <span>{health.battery_status}</span>
-                  <span>{health.battery_temp.toFixed(1)}°C</span>
-                </div>
-              </div>
+              <MetricCard
+                label="Battery"
+                value={`${health.battery_level}%`}
+                icon={<BatteryCharging className="h-4 w-4 text-emerald-400" />}
+                progress={health.battery_level}
+                progressColor={health.battery_level > 20 ? "bg-emerald-400" : "bg-rose-500"}
+                subLeft={health.battery_status}
+                subRight={`${health.battery_temp.toFixed(1)}°C`}
+              />
 
-              {/* Temperature Card */}
-              <div className="neo-box-sm p-3 bg-[var(--neo-card-bg)] space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="flex items-center gap-1.5 text-[var(--neo-text-muted)]">
-                    <Thermometer className="h-4 w-4 text-amber-400" />
-                    Temperature
-                  </span>
-                  <span className="font-mono text-amber-400">{health.battery_temp.toFixed(1)}°C</span>
-                </div>
-                <ProgressBar
-                  value={(health.battery_temp / 50) * 100}
-                  colorClass={health.battery_temp > 40 ? "bg-rose-500" : "bg-amber-400"}
-                />
-                <div className="flex items-center justify-between text-[11px] font-mono text-[var(--neo-text-muted)]">
-                  <span>Thermal Status</span>
-                  <span>{health.battery_temp > 40 ? "HOT" : "NORMAL"}</span>
-                </div>
-              </div>
+              <MetricCard
+                label="Temperature"
+                value={`${health.battery_temp.toFixed(1)}°C`}
+                icon={<Thermometer className="h-4 w-4 text-amber-400" />}
+                progress={(health.battery_temp / 50) * 100}
+                progressColor={health.battery_temp > 40 ? "bg-rose-500" : "bg-amber-400"}
+                subLeft="Thermal Status"
+                subRight={health.battery_temp > 40 ? "HOT" : "NORMAL"}
+              />
 
-              {/* RAM Usage Card */}
-              <div className="neo-box-sm p-3 bg-[var(--neo-card-bg)] space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="flex items-center gap-1.5 text-[var(--neo-text-muted)]">
-                    <HardDrive className="h-4 w-4 text-sky-400" />
-                    RAM Memory
-                  </span>
-                  <span className="font-mono text-sky-400">
-                    {(health.ram_used_mb / 1024).toFixed(1)} / {(health.ram_total_mb / 1024).toFixed(1)} GB
-                  </span>
-                </div>
-                <ProgressBar value={health.ram_usage_percent} colorClass="bg-sky-400" />
-                <div className="flex items-center justify-between text-[11px] font-mono text-[var(--neo-text-muted)]">
-                  <span>Usage</span>
-                  <span>{health.ram_usage_percent.toFixed(1)}%</span>
-                </div>
-              </div>
+              <MetricCard
+                label="RAM Memory"
+                value={`${(health.ram_used_mb / 1024).toFixed(1)} / ${(health.ram_total_mb / 1024).toFixed(1)} GB`}
+                icon={<HardDrive className="h-4 w-4 text-sky-400" />}
+                progress={health.ram_usage_percent}
+                progressColor="bg-sky-400"
+                subLeft="Usage"
+                subRight={`${health.ram_usage_percent.toFixed(1)}%`}
+              />
 
-              {/* Storage Card */}
-              <div className="neo-box-sm p-3 bg-[var(--neo-card-bg)] space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="flex items-center gap-1.5 text-[var(--neo-text-muted)]">
-                    <HardDrive className="h-4 w-4 text-purple-400" />
-                    Storage (/data)
-                  </span>
-                  <span className="font-mono text-purple-400">
-                    {health.storage_used_gb.toFixed(1)} / {health.storage_total_gb.toFixed(1)} GB
-                  </span>
-                </div>
-                <ProgressBar value={health.storage_usage_percent} colorClass="bg-purple-400" />
-                <div className="flex items-center justify-between text-[11px] font-mono text-[var(--neo-text-muted)]">
-                  <span>Free Space</span>
-                  <span>{(health.storage_total_gb - health.storage_used_gb).toFixed(1)} GB</span>
-                </div>
-              </div>
+              <MetricCard
+                label="Storage (/data)"
+                value={`${health.storage_used_gb.toFixed(1)} / ${health.storage_total_gb.toFixed(1)} GB`}
+                icon={<HardDrive className="h-4 w-4 text-purple-400" />}
+                progress={health.storage_usage_percent}
+                progressColor="bg-purple-400"
+                subLeft="Free Space"
+                subRight={`${(health.storage_total_gb - health.storage_used_gb).toFixed(1)} GB`}
+              />
             </div>
 
             {/* Sub-bar Dashboard Info */}
@@ -433,7 +381,7 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({ serial }) => {
         )}
       </Card>
 
-      {/* 2. Detailed Device Information Grid (24 Properties) */}
+      {/* 2. Detailed Device Information Grid (Properties) */}
       <Card
         headerTitle="Device Information & System Specifications"
         headerIcon={<Info className="h-5 w-5" />}
@@ -452,11 +400,10 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({ serial }) => {
         <div className="space-y-4">
           {/* Search Filter Bar */}
           <div className="max-w-md">
-            <Input
+            <SearchInput
               placeholder="Search properties (e.g. ABI, Kernel, Serial, Version)..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              icon={<Search className="h-4 w-4" />}
+              onChange={setSearchQuery}
             />
           </div>
 
@@ -497,7 +444,7 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({ serial }) => {
             </div>
           )}
 
-          {/* Grid Layout of 24 Properties */}
+          {/* Grid Layout of Properties */}
           {filteredProperties.length === 0 ? (
             <div className="py-6 text-center text-xs text-[var(--neo-text-muted)] font-mono">
               No matching device properties found for "{searchQuery}".

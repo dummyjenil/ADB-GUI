@@ -4,9 +4,8 @@ import { CallLogItem, SmsItem, ContactItem } from "./types";
 import { CallLogsPanel } from "./CallLogsPanel";
 import { SmsHubPanel } from "./SmsHubPanel";
 import { ContactsPanel } from "./ContactsPanel";
-import { Card } from "../ui/Card";
-import { EmptyState } from "../ui/EmptyState";
-import { Phone, MessageSquare, Users, CheckCircle2, PhoneCall } from "lucide-react";
+import { Card, EmptyState, Tabs, Toast } from "../ui";
+import { Phone, MessageSquare, Users, PhoneCall } from "lucide-react";
 import { CommandPreview } from "../../types/terminal";
 
 interface CommunicationStudioProps {
@@ -105,46 +104,28 @@ export const CommunicationStudio: React.FC<CommunicationStudioProps> = ({
   return (
     <div className="space-y-6">
       {/* Subtabs Selector */}
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setActiveSubTab("calls")}
-          className={`neo-btn px-4 py-2.5 text-xs font-black uppercase flex items-center gap-2 cursor-pointer transition-all ${
-            activeSubTab === "calls"
-              ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)] border-[var(--neo-border)]"
-              : "bg-[var(--neo-card-bg)] text-[var(--neo-text)] hover:bg-black/10"
-          }`}
-        >
-          <Phone className="h-4 w-4" />
-          <span>Call Management</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveSubTab("sms")}
-          className={`neo-btn px-4 py-2.5 text-xs font-black uppercase flex items-center gap-2 cursor-pointer transition-all ${
-            activeSubTab === "sms"
-              ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)] border-[var(--neo-border)]"
-              : "bg-[var(--neo-card-bg)] text-[var(--neo-text)] hover:bg-black/10"
-          }`}
-        >
-          <MessageSquare className="h-4 w-4" />
-          <span>SMS Inbox & Sender</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveSubTab("contacts")}
-          className={`neo-btn px-4 py-2.5 text-xs font-black uppercase flex items-center gap-2 cursor-pointer transition-all ${
-            activeSubTab === "contacts"
-              ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)] border-[var(--neo-border)]"
-              : "bg-[var(--neo-card-bg)] text-[var(--neo-text)] hover:bg-black/10"
-          }`}
-        >
-          <Users className="h-4 w-4" />
-          <span>Contacts Access</span>
-        </button>
-      </div>
+      <Tabs
+        activeTab={activeSubTab}
+        onChange={setActiveSubTab}
+        variant="buttons"
+        tabs={[
+          {
+            id: "calls",
+            label: "Call Management",
+            icon: <Phone className="h-4 w-4" />,
+          },
+          {
+            id: "sms",
+            label: "SMS Inbox & Sender",
+            icon: <MessageSquare className="h-4 w-4" />,
+          },
+          {
+            id: "contacts",
+            label: "Contacts Access",
+            icon: <Users className="h-4 w-4" />,
+          },
+        ]}
+      />
 
       {/* Main Studio Card */}
       <Card
@@ -199,13 +180,12 @@ export const CommunicationStudio: React.FC<CommunicationStudioProps> = ({
         )}
       </Card>
 
-      {/* Feedback Toast */}
-      {feedback && (
-        <div className="fixed bottom-6 right-6 neo-box px-4 py-2.5 bg-[var(--neo-primary)] text-[var(--neo-primary-text)] text-xs font-black flex items-center gap-2 animate-neo-slide z-50 shadow-[4px_4px_0px_0px_var(--neo-shadow)]">
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
-          <span>{feedback}</span>
-        </div>
-      )}
+      {/* Reusable Feedback Toast */}
+      <Toast
+        message={feedback}
+        type="success"
+        onClose={() => setFeedback(null)}
+      />
     </div>
   );
 };
