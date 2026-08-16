@@ -25,6 +25,7 @@ import {
   Layers,
   Play,
   Pause,
+  PhoneCall,
 } from "lucide-react";
 
 export interface DeviceDetails {
@@ -54,6 +55,14 @@ export interface DeviceDetails {
   wifi_debugging: string;
   root_availability: string;
   selinux_status: string;
+  network_operator?: string;
+  sim_operator?: string;
+  sim_state?: string;
+  is_roaming?: string;
+  sim_country?: string;
+  operator_numeric?: string;
+  multisim_config?: string;
+  phone_number?: string;
 }
 
 export interface DeviceHealth {
@@ -195,6 +204,14 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({ serial }) => {
 
   const allPropertiesList = details
     ? [
+      { label: "Line 1 Phone Number (Self)", value: details.phone_number || "Not Available", icon: <PhoneCall className="h-4 w-4 text-emerald-400" /> },
+      { label: "Network Operator", value: details.network_operator || "Not Available", icon: <Radio className="h-4 w-4 text-emerald-400" /> },
+      { label: "SIM Operator / Carrier", value: details.sim_operator || "Not Available", icon: <Radio className="h-4 w-4 text-cyan-400" /> },
+      { label: "SIM Slot Status", value: details.sim_state || "No SIM", icon: <Layers className="h-4 w-4 text-amber-400" /> },
+      { label: "Roaming Status", value: details.is_roaming || "Domestic", icon: <Radio className="h-4 w-4 text-rose-400" /> },
+      { label: "SIM Country ISO", value: details.sim_country || "Unknown", icon: <Info className="h-4 w-4 text-indigo-400" /> },
+      { label: "Operator Numeric (MCC/MNC)", value: details.operator_numeric || "N/A", icon: <Terminal className="h-4 w-4 text-sky-400" /> },
+      { label: "Multi-SIM Configuration", value: details.multisim_config || "Single SIM", icon: <Layers className="h-4 w-4 text-teal-400" /> },
       { label: "Hardware Serial", value: details.hardware_serial || details.serial, icon: <Radio className="h-4 w-4 text-emerald-400" /> },
       { label: "ADB Endpoint", value: details.adb_target || details.serial, icon: <Wifi className="h-4 w-4 text-cyan-400" /> },
       { label: "Model", value: details.model, icon: <Smartphone className="h-4 w-4 text-amber-400" /> },
@@ -442,6 +459,43 @@ export const DeviceDashboard: React.FC<DeviceDashboardProps> = ({ serial }) => {
               icon={<Search className="h-4 w-4" />}
             />
           </div>
+
+          {/* SIM & Cellular Telephony Highlight Banner */}
+          {details && (
+            <div className="neo-box-sm p-3 bg-gradient-to-r from-emerald-950/40 via-cyan-950/30 to-blue-950/40 border-l-4 border-emerald-400 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2.5">
+                <Radio className="h-5 w-5 text-emerald-400 shrink-0" />
+                <div>
+                  <div className="font-bold flex items-center gap-2 text-emerald-300">
+                    <span>{details.network_operator || "Cellular Network"}</span>
+                    {details.sim_country && details.sim_country !== "UNKNOWN" && (
+                      <Badge variant="secondary" className="text-[10px] py-0 uppercase">
+                        {details.sim_country}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="text-[11px] font-mono text-[var(--neo-text-muted)] flex flex-wrap items-center gap-2 mt-0.5">
+                    {details.phone_number && details.phone_number !== "Not Available / Hidden by Carrier" && (
+                      <span className="text-emerald-400 font-bold bg-black/40 px-1.5 py-0.5 rounded border border-emerald-500/30">
+                        📱 {details.phone_number}
+                      </span>
+                    )}
+                    <span>{details.sim_state || "No SIM"} • {details.multisim_config || "Single SIM"}</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 font-mono text-[11px]">
+                <Badge variant={details.is_roaming?.includes("Roaming Active") ? "accent" : "success"}>
+                  {details.is_roaming || "Domestic"}
+                </Badge>
+                {details.operator_numeric && details.operator_numeric !== "N/A" && (
+                  <Badge variant="secondary" className="text-[10px]">
+                    PLMN {details.operator_numeric}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Grid Layout of 24 Properties */}
           {filteredProperties.length === 0 ? (

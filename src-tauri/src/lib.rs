@@ -107,11 +107,13 @@ pub fn run() {
             dump_ui_hierarchy,
             get_device_notifications,
             dismiss_notification,
+            post_custom_notification,
             get_call_logs,
             trigger_call,
             end_call,
             get_sms_list,
             send_sms,
+            open_sms_composer,
             get_contacts_list
         ])
         .run(tauri::generate_context!())

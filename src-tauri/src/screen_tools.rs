@@ -168,7 +168,7 @@ pub async fn stop_screen_recording(serial: String) -> Result<ScreenRecordResult,
             success: false,
             file_path: String::new(),
             timestamp: ts,
-            error: Some("Recorded video file was empty or failed to pull. Ensure device screen was on during recording.".to_string()),
+            error: Some("Recorded video file was empty or failed to pull. OEM ROMs (Realme/Oppo/ColorOS) restrict ADB screenrecord by default—ensure 'Disable Permission Monitoring' is enabled in Developer Options and screen is unlocked.".to_string()),
         });
     }
 

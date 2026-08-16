@@ -30,6 +30,14 @@ pub struct DeviceDetails {
     pub wifi_debugging: String,
     pub root_availability: String,
     pub selinux_status: String,
+    pub network_operator: String,
+    pub sim_operator: String,
+    pub sim_state: String,
+    pub is_roaming: String,
+    pub sim_country: String,
+    pub operator_numeric: String,
+    pub multisim_config: String,
+    pub phone_number: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -82,6 +90,64 @@ fn exec_adb_shell(serial: &str, cmd: &[&str]) -> String {
         Ok(out) if out.status.success() => String::from_utf8_lossy(&out.stdout).trim().to_string(),
         _ => "Unknown".to_string(),
     }
+}
+
+/// Helper to parse ASCII/numeric string from Android service call parcel dump
+fn parse_parcel_string(raw: &str) -> String {
+    let mut result = String::new();
+    for line in raw.lines() {
+        if let Some(quote_start) = line.find('\'') {
+            if let Some(quote_end) = line.rfind('\'') {
+                if quote_end > quote_start {
+                    let slice = &line[quote_start + 1..quote_end];
+                    for ch in slice.chars() {
+                        if ch.is_ascii_digit() || ch == '+' {
+                            result.push(ch);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    result.trim().to_string()
+}
+
+/// Helper to extract self phone number via iphonesubinfo service call or fallback
+fn get_self_phone_number(serial: &str) -> String {
+    // 1. Try service call iphonesubinfo transaction codes (19, 18, 15, 13)
+    for code in &["19", "18", "15", "13"] {
+        let output = exec_adb_shell(serial, &["service", "call", "iphonesubinfo", code]);
+        if output.contains("Result: Parcel") {
+            let extracted = parse_parcel_string(&output);
+            if !extracted.is_empty() && extracted.chars().any(|c| c.is_ascii_digit()) && extracted.len() >= 6 {
+                return extracted;
+            }
+        }
+    }
+
+    // 2. Try with com.android.shell caller identity parameter
+    let output = exec_adb_shell(serial, &["service", "call", "iphonesubinfo", "19", "s16", "com.android.shell"]);
+    if output.contains("Result: Parcel") {
+        let extracted = parse_parcel_string(&output);
+        if !extracted.is_empty() && extracted.chars().any(|c| c.is_ascii_digit()) && extracted.len() >= 6 {
+            return extracted;
+        }
+    }
+
+    // 3. Fallback: try querying call log phone_account_address
+    let call_query = exec_adb_shell(
+        serial,
+        &["content", "query", "--uri", "content://call_log/calls", "--projection", "phone_account_address", "--limit", "1"],
+    );
+    if let Some(idx) = call_query.find("phone_account_address=") {
+        let val = &call_query[idx + 22..];
+        let num = val.split_whitespace().next().unwrap_or("").trim_matches(',').trim();
+        if !num.is_empty() && num != "NULL" && num != "null" && num.len() >= 6 {
+            return num.to_string();
+        }
+    }
+
+    "Not Available / Hidden by Carrier".to_string()
 }
 
 /// Format seconds into readable uptime format (e.g. "2d 14h 32m")
@@ -232,6 +298,73 @@ pub async fn get_device_full_details(serial: String) -> std::result::Result<Devi
         }
     };
 
+    // Cellular & SIM Telephony Info
+    let raw_net_op = get_prop("gsm.operator.alpha", "");
+    let network_operator = if !raw_net_op.is_empty() {
+        raw_net_op.trim_end_matches(',').trim().to_string()
+    } else {
+        get_prop("gsm.sim.operator.alpha", "No Network / Wi-Fi Only")
+    };
+
+    let sim_operator = {
+        let op = get_prop("gsm.sim.operator.alpha", "");
+        if !op.is_empty() {
+            op.trim_end_matches(',').trim().to_string()
+        } else {
+            "Not Available".to_string()
+        }
+    };
+
+    let sim_state_raw = get_prop("gsm.sim.state", "");
+    let sim_state = if !sim_state_raw.is_empty() {
+        let parts: Vec<&str> = sim_state_raw.split(',').collect();
+        let formatted: Vec<String> = parts.iter().enumerate().map(|(idx, s)| {
+            let status = match s.trim() {
+                "LOADED" | "READY" => "Ready (Active)",
+                "ABSENT" | "NOT_READY" => "Absent / Empty",
+                "PIN_REQUIRED" => "PIN Locked",
+                "PUK_REQUIRED" => "PUK Locked",
+                "NETWORK_LOCKED" => "Network Locked",
+                other => other,
+            };
+            format!("Slot {}: {}", idx + 1, status)
+        }).collect();
+        formatted.join(" • ")
+    } else {
+        "No SIM detected".to_string()
+    };
+
+    let roaming_raw = get_prop("gsm.operator.isroaming", "false");
+    let is_roaming = if roaming_raw.contains("true") {
+        "Roaming Active".to_string()
+    } else {
+        "Home Network (No Roaming)".to_string()
+    };
+
+    let sim_country = {
+        let c = get_prop("gsm.operator.iso-country", &get_prop("gsm.sim.operator.iso-country", ""));
+        let cleaned = c.trim_end_matches(',').trim().to_uppercase();
+        if cleaned.is_empty() { "Unknown".to_string() } else { cleaned }
+    };
+
+    let operator_numeric = {
+        let n = get_prop("gsm.operator.numeric", &get_prop("gsm.sim.operator.numeric", ""));
+        let cleaned = n.trim_end_matches(',').trim();
+        if cleaned.is_empty() { "N/A".to_string() } else { cleaned.to_string() }
+    };
+
+    let slots_count = get_prop("ro.telephony.sim_slots.count", "1");
+    let multi_config = get_prop("persist.radio.multisim.config", &get_prop("ro.vendor.oplus.radio.multisim.config", ""));
+    let multisim_config = if multi_config == "dsds" || slots_count == "2" {
+        format!("Dual SIM (DSDS) • {} Slots", slots_count)
+    } else if !multi_config.is_empty() {
+        format!("{} • {} Slots", multi_config.to_uppercase(), slots_count)
+    } else {
+        format!("Single SIM • {} Slot", slots_count)
+    };
+
+    let phone_number = get_self_phone_number(&serial);
+
     Ok(DeviceDetails {
         adb_target: serial.clone(),
         hardware_serial,
@@ -259,6 +392,14 @@ pub async fn get_device_full_details(serial: String) -> std::result::Result<Devi
         wifi_debugging,
         root_availability,
         selinux_status,
+        network_operator,
+        sim_operator,
+        sim_state,
+        is_roaming,
+        sim_country,
+        operator_numeric,
+        multisim_config,
+        phone_number,
     })
 }
 

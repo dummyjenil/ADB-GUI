@@ -12,6 +12,7 @@ import {
   Clock,
   ArrowUpRight,
   ArrowDownLeft,
+  ExternalLink,
 } from "lucide-react";
 
 interface SmsHubPanelProps {
@@ -42,18 +43,32 @@ export const SmsHubPanel: React.FC<SmsHubPanelProps> = ({
     if (!recipient.trim() || !message.trim()) return;
     setSending(true);
     try {
-      await invoke("send_sms", {
+      const res: string = await invoke("send_sms", {
         serial: activeDevice,
         number: recipient.trim(),
         body: message.trim(),
       });
-      onFeedback(`SMS dispatched to ${recipient}`);
+      onFeedback(res || `SMS dispatched to ${recipient}`);
       setMessage("");
       onRefresh();
     } catch (err: any) {
       onFeedback(`Error sending SMS: ${String(err)}`);
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleOpenComposer = async () => {
+    if (!recipient.trim()) return;
+    try {
+      const res: string = await invoke("open_sms_composer", {
+        serial: activeDevice,
+        number: recipient.trim(),
+        body: message.trim(),
+      });
+      onFeedback(res || `Opened SMS Composer on phone for ${recipient}`);
+    } catch (err: any) {
+      onFeedback(`Error opening SMS composer: ${String(err)}`);
     }
   };
 
@@ -174,16 +189,29 @@ export const SmsHubPanel: React.FC<SmsHubPanelProps> = ({
               />
             </div>
 
-            <Button
-              type="submit"
-              size="md"
-              variant="primary"
-              className="w-full justify-center"
-              icon={<Send className="h-4 w-4" />}
-              loading={sending}
-            >
-              Send SMS via Device
-            </Button>
+            <div className="space-y-2 pt-1">
+              <Button
+                type="submit"
+                size="md"
+                variant="primary"
+                className="w-full justify-center"
+                icon={<Send className="h-4 w-4" />}
+                loading={sending}
+              >
+                Send SMS via Device
+              </Button>
+
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="w-full justify-center text-xs"
+                icon={<ExternalLink className="h-3.5 w-3.5" />}
+                onClick={handleOpenComposer}
+              >
+                Open Composer on Phone
+              </Button>
+            </div>
           </form>
         </div>
       </div>

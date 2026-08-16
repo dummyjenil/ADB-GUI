@@ -296,11 +296,149 @@ fn build_notification_item(
     }
 }
 
-/// Dismiss / cancel a notification on the device
+/// Dismiss / cancel or snooze a notification on the device
 #[tauri::command]
 pub async fn dismiss_notification(serial: String, package_name: String, id: String) -> Result<String, String> {
+    // 1. Try cancel by package and id
     let _ = Command::new("adb")
         .args(["-s", &serial, "shell", "cmd", "notification", "cancel", &package_name, &id])
         .output();
-    Ok("Notification dismissed".to_string())
+
+    // 2. Try snooze if cancel isn't supported on device
+    let key = format!("0|{}|{}|null|1000", package_name, id);
+    let _ = Command::new("adb")
+        .args(["-s", &serial, "shell", "cmd", "notification", "snooze", "--for", "86400000", &key])
+        .output();
+
+    Ok("Dismiss/Snooze signal sent to device".to_string())
 }
+
+/// Post a dynamic custom notification directly onto the device notification drawer
+#[tauri::command]
+pub async fn post_custom_notification(
+    serial: String,
+    title: String,
+    message: String,
+    sub_text: Option<String>,
+    click_uri: Option<String>,
+    is_ongoing: Option<bool>,
+    is_unique_tag: Option<bool>,
+    priority: Option<String>,
+    channel_id: Option<String>,
+) -> Result<String, String> {
+    let title_clean = if title.trim().is_empty() { "ADB Studio" } else { title.trim() };
+    let msg_clean = if message.trim().is_empty() { "Notification from ADB GUI Studio" } else { message.trim() };
+
+    let mut args: Vec<String> = vec![
+        "-s".to_string(),
+        serial.clone(),
+        "shell".to_string(),
+        "cmd".to_string(),
+        "notification".to_string(),
+        "post".to_string(),
+        "-S".to_string(),
+        "bigtext".to_string(),
+        "-t".to_string(),
+        title_clean.to_string(),
+    ];
+
+    // Subtext / summary
+    if let Some(ref sub) = sub_text {
+        let clean = sub.trim();
+        if !clean.is_empty() {
+            args.push("-s".to_string());
+            args.push(clean.to_string());
+        }
+    }
+
+    // Channel ID
+    if let Some(ref chan) = channel_id {
+        let clean = chan.trim();
+        if !clean.is_empty() {
+            args.push("-c".to_string());
+            args.push(clean.to_string());
+        }
+    }
+
+    // Priority / Importance
+    if let Some(ref prio) = priority {
+        match prio.to_lowercase().as_str() {
+            "high" | "urgent" | "max" => {
+                args.push("-p".to_string());
+                args.push("1".to_string());
+            }
+            "low" | "min" => {
+                args.push("-p".to_string());
+                args.push("-1".to_string());
+            }
+            _ => {}
+        }
+    }
+
+    // Ongoing / Sticky notification flag
+    if is_ongoing.unwrap_or(false) {
+        args.push("--ongoing".to_string());
+    }
+
+    // Click action URL / intent
+    if let Some(ref uri) = click_uri {
+        let clean = uri.trim();
+        if !clean.is_empty() {
+            args.push("-d".to_string());
+            args.push(clean.to_string());
+        }
+    }
+
+    // Tag (unique timestamped vs fixed)
+    let tag = if is_unique_tag.unwrap_or(false) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis();
+        format!("ADB_GUI_{}", now)
+    } else {
+        "ADB_GUI_CUSTOM".to_string()
+    };
+    args.push(tag);
+    args.push(msg_clean.to_string());
+
+    let output = Command::new("adb")
+        .args(&args)
+        .output()
+        .map_err(|e| format!("Failed to post notification: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+    if output.status.success() || stdout.contains("posting:") {
+        Ok(format!("Notification posted to device: \"{}\"", title_clean))
+    } else {
+        // If advanced flags caused error on older Android, fallback to basic notification
+        let fallback_output = Command::new("adb")
+            .args([
+                "-s",
+                &serial,
+                "shell",
+                "cmd",
+                "notification",
+                "post",
+                "-S",
+                "bigtext",
+                "-t",
+                title_clean,
+                "ADB_GUI_CUSTOM",
+                msg_clean,
+            ])
+            .output();
+
+        if let Ok(f_out) = fallback_output {
+            if f_out.status.success() {
+                return Ok(format!("Notification posted (standard mode): \"{}\"", title_clean));
+            }
+        }
+
+        Err(if !stderr.is_empty() { stderr } else { stdout })
+    }
+}
+
+

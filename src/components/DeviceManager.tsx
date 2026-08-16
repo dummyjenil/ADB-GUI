@@ -505,8 +505,21 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
                   </span>
                   <span className="text-[10px] text-[var(--neo-text-muted)]">Select or type manually below</span>
                 </div>
-                <select
-                  className="neo-input w-full py-1.5 px-2.5 text-xs font-mono font-bold bg-black/40 text-cyan-300 border-cyan-500/40 cursor-pointer"
+                <Select
+                  options={[
+                    {
+                      value: "",
+                      label: `-- Choose Discovered Device (${
+                        discoveredServices.filter((s) => s.service_type === "connect").length
+                      } found) --`,
+                    },
+                    ...discoveredServices
+                      .filter((s) => s.service_type === "connect")
+                      .map((s) => ({
+                        value: s.full_address,
+                        label: `${s.name.split(".")[0]} (${s.full_address})`,
+                      })),
+                  ]}
                   value={
                     discoveredServices
                       .filter((s) => s.service_type === "connect")
@@ -514,23 +527,12 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
                       ? directIpPort
                       : ""
                   }
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      setDirectIpPort(e.target.value);
-                    }
+                  onChange={(val) => {
+                    if (val) setDirectIpPort(val);
                   }}
-                >
-                  <option value="">
-                    -- Choose Discovered Device ({discoveredServices.filter((s) => s.service_type === "connect").length} found) --
-                  </option>
-                  {discoveredServices
-                    .filter((s) => s.service_type === "connect")
-                    .map((s, idx) => (
-                      <option key={idx} value={s.full_address}>
-                        {s.full_address} ({s.name.split(".")[0]})
-                      </option>
-                    ))}
-                </select>
+                  variant="card"
+                  className="w-full"
+                />
               </div>
             )}
 

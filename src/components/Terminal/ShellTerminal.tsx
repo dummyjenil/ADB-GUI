@@ -101,17 +101,31 @@ export const ShellTerminal: React.FC<ShellTerminalProps> = ({
     return () => clearTimeout(timer);
   }, [activeTabId, isFullScreen, refitActiveTerminal]);
 
-  // External pending command handler
+  // External pending command handler (types into terminal without auto-executing Enter)
   useEffect(() => {
     if (pendingCommand && activeTab) {
       let cleanCmd = pendingCommand.trim();
-      cleanCmd = cleanCmd.replace(/^adb(\.exe)?\s+(-s\s+\S+\s+)?shell\s+/i, "");
+      // Robust unwrapping of adb / adb.exe with optional serial/ip and shell/exec-out
+      cleanCmd = cleanCmd.replace(/^adb(\.exe)?(\s+-s\s+\S+)?\s+(shell|exec-out)\s+/i, "");
+      if (/^adb(\.exe)?(\s+-s\s+\S+)?\s+shell\s*$/i.test(cleanCmd)) {
+        cleanCmd = "";
+      }
+      if (
+        (cleanCmd.startsWith('"') && cleanCmd.endsWith('"')) ||
+        (cleanCmd.startsWith("'") && cleanCmd.endsWith("'"))
+      ) {
+        if (cleanCmd.length >= 2) {
+          cleanCmd = cleanCmd.slice(1, -1);
+        }
+      }
 
       const timer = setTimeout(() => {
-        invoke("write_terminal_input", {
-          sessionId: activeTab.sessionId,
-          input: cleanCmd + "\n",
-        }).catch(console.error);
+        if (cleanCmd) {
+          invoke("write_terminal_input", {
+            sessionId: activeTab.sessionId,
+            input: cleanCmd, // Type only, do not append \n
+          }).catch(console.error);
+        }
 
         if (onClearPendingCommand) {
           onClearPendingCommand();

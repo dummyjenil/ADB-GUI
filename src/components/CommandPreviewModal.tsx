@@ -6,19 +6,21 @@ interface CommandPreviewModalProps {
   preview: CommandPreview | null;
   onClose: () => void;
   onRunInTerminal?: (cmd: string) => void;
+  onTypeInTerminal?: (cmd: string) => void;
 }
 
 export const CommandPreviewModal: React.FC<CommandPreviewModalProps> = ({
   preview,
   onClose,
   onRunInTerminal,
+  onTypeInTerminal,
 }) => {
   const [copied, setCopied] = useState(false);
 
   if (!preview) return null;
 
   const handleCopy = async () => {
-    const cleanCmd = preview.command.replace(/\r\n/g, "\n").trim();
+    const cleanCmd = preview.command.replace(/\r\n/g, "\n").replace(/\r/g, "").trim();
     if (navigator.clipboard && navigator.clipboard.writeText) {
       try {
         await navigator.clipboard.writeText(cleanCmd);
@@ -42,14 +44,19 @@ export const CommandPreviewModal: React.FC<CommandPreviewModalProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleRun = () => {
-    if (onRunInTerminal) {
-      let cmd = preview.command.trim();
-      // Strip host ADB command prefix to run purely inside interactive device shell
-      cmd = cmd.replace(/^adb(\.exe)?\s+(-s\s+\S+\s+)?shell\s+/i, "");
+  const handleRun = (execute: boolean) => {
+    let cmd = preview.command.trim();
+    cmd = cmd.replace(/^adb(\.exe)?\s+(-s\s+\S+\s+)?shell\s+/i, "");
+    if (execute && onRunInTerminal) {
       onRunInTerminal(cmd);
-      onClose();
+    } else if (!execute && (onTypeInTerminal || onRunInTerminal)) {
+      if (onTypeInTerminal) {
+        onTypeInTerminal(cmd);
+      } else if (onRunInTerminal) {
+        onRunInTerminal(cmd);
+      }
     }
+    onClose();
   };
 
   return (
@@ -137,26 +144,36 @@ export const CommandPreviewModal: React.FC<CommandPreviewModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 border-t-2 border-[var(--neo-border)] bg-[var(--neo-bg)] flex items-center justify-end gap-3">
-          <button onClick={onClose} className="neo-btn px-4 py-2 text-xs font-bold bg-gray-200 text-gray-800">
+        <div className="p-4 border-t-2 border-[var(--neo-border)] bg-[var(--neo-bg)] flex flex-wrap items-center justify-end gap-2.5">
+          <button onClick={onClose} className="neo-btn px-3.5 py-2 text-xs font-bold bg-gray-200 text-gray-800">
             Close
           </button>
           <button
             onClick={handleCopy}
-            className="neo-btn px-4 py-2 text-xs font-extrabold bg-blue-400 text-black flex items-center gap-1.5"
+            className="neo-btn px-3.5 py-2 text-xs font-extrabold bg-blue-400 text-black flex items-center gap-1.5"
           >
             <Copy className="h-3.5 w-3.5" />
-            Copy Command
+            Copy
           </button>
           {onRunInTerminal && (
-            <button
-              onClick={handleRun}
-              className="neo-btn px-4 py-2 text-xs font-extrabold bg-[var(--neo-primary)] text-[var(--neo-primary-text)] flex items-center gap-1.5"
-            >
-              <Terminal className="h-3.5 w-3.5" />
-              <span>Run in Shell Terminal</span>
-              <ExternalLink className="h-3 w-3 ml-0.5" />
-            </button>
+            <>
+              <button
+                onClick={() => handleRun(false)}
+                className="neo-btn px-3 py-2 text-xs font-extrabold bg-amber-400 text-black flex items-center gap-1.5"
+                title="Type text into terminal without pressing Enter"
+              >
+                <Terminal className="h-3.5 w-3.5" />
+                <span>Type Only</span>
+              </button>
+              <button
+                onClick={() => handleRun(true)}
+                className="neo-btn px-3.5 py-2 text-xs font-extrabold bg-[var(--neo-primary)] text-[var(--neo-primary-text)] flex items-center gap-1.5"
+              >
+                <Terminal className="h-3.5 w-3.5" />
+                <span>Execute in Terminal</span>
+                <ExternalLink className="h-3 w-3 ml-0.5" />
+              </button>
+            </>
           )}
         </div>
       </div>

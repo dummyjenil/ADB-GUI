@@ -526,26 +526,36 @@ pub async fn execute_pm_command(serial: String, command: String, args: Option<Ve
     if clean_cmd.starts_with("pm ") {
         clean_cmd = clean_cmd[3..].trim().to_string();
     }
-    let mut shell_args: Vec<String> = vec!["pm".to_string()];
-    for part in clean_cmd.split_whitespace() {
-        shell_args.push(part.to_string());
-    }
+    let mut shell_cmd = format!("pm {}", clean_cmd);
 
     if let Some(extra_args) = args {
         for a in extra_args {
-            for sub in a.split_whitespace() {
-                shell_args.push(sub.to_string());
+            if !a.trim().is_empty() {
+                shell_cmd.push(' ');
+                shell_cmd.push_str(a.trim());
             }
         }
     }
 
-    let slice_args: Vec<&str> = shell_args.iter().map(|s| s.as_str()).collect();
-    let res = run_adb_shell(&serial, &slice_args)?;
-    if res.trim().is_empty() {
-        Ok("PM Command completed successfully (no text output returned from device).".to_string())
+    let output = Command::new("adb")
+        .args(["-s", &serial, "shell", &shell_cmd])
+        .output()
+        .map_err(|e| format!("Failed to run PM command: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+
+    let combined = if !stdout.is_empty() && !stderr.is_empty() {
+        format!("{}\n\n[stderr]:\n{}", stdout, stderr)
+    } else if !stdout.is_empty() {
+        stdout
+    } else if !stderr.is_empty() {
+        stderr
     } else {
-        Ok(res)
-    }
+        "PM Command completed successfully (no text output returned from device).".to_string()
+    };
+
+    Ok(combined)
 }
 
 #[tauri::command]

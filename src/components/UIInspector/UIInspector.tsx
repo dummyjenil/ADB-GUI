@@ -1,6 +1,18 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
-import { Layers, RefreshCw, Search, Copy, Check, Code, ChevronRight, ChevronDown, AlertCircle } from "lucide-react";
+import {
+  Layers,
+  RefreshCw,
+  Search,
+  Copy,
+  Check,
+  Code,
+  ChevronRight,
+  ChevronDown,
+  AlertCircle,
+  Eye,
+  Crosshair
+} from "lucide-react";
 import { Card } from "../ui/Card";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
@@ -12,6 +24,8 @@ interface UiDumpResult {
   data_url?: string;
   xml_content: string;
   error?: string;
+  display_width?: number;
+  display_height?: number;
 }
 
 interface ParsedNode {
@@ -28,6 +42,7 @@ interface ParsedNode {
   enabled: boolean;
   children: ParsedNode[];
   attributes: Record<string, string>;
+  parentId?: string;
 }
 
 interface UIInspectorProps {
@@ -43,6 +58,9 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [expandedNodeIds, setExpandedNodeIds] = useState<Record<string, boolean>>({});
+  const [screenDim, setScreenDim] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+  const [overlayMode, setOverlayMode] = useState<"selected" | "clickable" | "all">("selected");
+  const imgContainerRef = useRef<HTMLDivElement>(null);
 
   const handleDumpUI = async () => {
     if (!activeDevice) return;
@@ -55,6 +73,9 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
       const res: UiDumpResult = await invoke("dump_ui_hierarchy", { serial: activeDevice });
       if (res.success) {
         setDumpData(res);
+        if (res.display_width && res.display_height) {
+          setScreenDim({ width: res.display_width, height: res.display_height });
+        }
       } else {
         setErrorMsg(res.error || "Failed to dump UI hierarchy");
       }
@@ -66,7 +87,7 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
   };
 
   // Parse raw XML string to DOM Node Tree
-  const parsedRoot = useMemo(() => {
+  const parsedData = useMemo(() => {
     if (!dumpData || !dumpData.xml_content) return null;
 
     try {
@@ -76,9 +97,18 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
       if (!hierarchyNode) return null;
 
       let counter = 0;
-      const parseXmlNode = (el: Element): ParsedNode => {
+      let maxCoordX = 0;
+      let maxCoordY = 0;
+      const allFlatNodes: ParsedNode[] = [];
+      const parentMap = new Map<string, string>();
+
+      const parseXmlNode = (el: Element, parentId?: string): ParsedNode => {
         counter++;
         const nodeId = `node_${counter}`;
+        if (parentId) {
+          parentMap.set(nodeId, parentId);
+        }
+
         const attrs: Record<string, string> = {};
         for (let i = 0; i < el.attributes.length; i++) {
           const attr = el.attributes[i];
@@ -88,23 +118,24 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
         const boundsStr = attrs["bounds"] || "";
         let bounds = null;
         if (boundsStr) {
-          // Format "[x1,y1][x2,y2]"
           const match = boundsStr.match(/\[(\d+),(\d+)\]\[(\d+),(\d+)\]/);
           if (match) {
             const x1 = parseInt(match[1], 10);
             const y1 = parseInt(match[2], 10);
             const x2 = parseInt(match[3], 10);
             const y2 = parseInt(match[4], 10);
-            bounds = { x1, y1, x2, y2, width: x2 - x1, height: y2 - y1 };
+            bounds = { x1, y1, x2, y2, width: Math.max(0, x2 - x1), height: Math.max(0, y2 - y1) };
+            if (x2 > maxCoordX) maxCoordX = x2;
+            if (y2 > maxCoordY) maxCoordY = y2;
           }
         }
 
         const className = attrs["class"] || el.tagName;
         const shortClass = className.split(".").pop() || className;
 
-        const children: ParsedNode[] = Array.from(el.children).map((child) => parseXmlNode(child));
+        const children: ParsedNode[] = Array.from(el.children).map((child) => parseXmlNode(child, nodeId));
 
-        return {
+        const node: ParsedNode = {
           id: nodeId,
           tag: el.tagName,
           className: shortClass,
@@ -118,16 +149,123 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
           enabled: attrs["enabled"] === "true",
           children,
           attributes: attrs,
+          parentId,
         };
+
+        allFlatNodes.push(node);
+        return node;
       };
 
-      const firstChild = hierarchyNode.firstElementChild;
-      return firstChild ? parseXmlNode(firstChild) : null;
+      const topLevelChildren = Array.from(hierarchyNode.children);
+      let rootNode: ParsedNode | null = null;
+
+      if (topLevelChildren.length === 1) {
+        rootNode = parseXmlNode(topLevelChildren[0]);
+      } else if (topLevelChildren.length > 1) {
+        const children = topLevelChildren.map((ch) => parseXmlNode(ch, "node_root"));
+        rootNode = {
+          id: "node_root",
+          tag: "hierarchy",
+          className: "HierarchyRoot",
+          resourceId: "root",
+          text: "",
+          contentDesc: "",
+          packageName: "",
+          boundsStr: `[0,0][${maxCoordX},${maxCoordY}]`,
+          bounds: { x1: 0, y1: 0, x2: maxCoordX, y2: maxCoordY, width: maxCoordX, height: maxCoordY },
+          clickable: false,
+          enabled: true,
+          children,
+          attributes: {},
+        };
+        allFlatNodes.unshift(rootNode);
+      }
+
+      return {
+        rootNode,
+        maxX: maxCoordX,
+        maxY: maxCoordY,
+        allNodes: allFlatNodes,
+        parentMap,
+      };
     } catch (err) {
       console.error("Failed to parse XML:", err);
       return null;
     }
   }, [dumpData]);
+
+  const parsedRoot = parsedData?.rootNode || null;
+
+  // True display coordinate system from screenshot image dimensions or device display size
+  const canvasWidth =
+    (screenDim.width && screenDim.width > 0)
+      ? screenDim.width
+      : (dumpData?.display_width || (parsedData?.maxX && parsedData.maxX > 0 ? parsedData.maxX : 1080));
+
+  const canvasHeight =
+    (screenDim.height && screenDim.height > 0)
+      ? screenDim.height
+      : (dumpData?.display_height || (parsedData?.maxY && parsedData.maxY > 0 ? parsedData.maxY : 2400));
+
+  // Find deepest matching leaf node given coordinate
+  const findNodeAtCoord = (node: ParsedNode, x: number, y: number): ParsedNode | null => {
+    if (!node.bounds) return null;
+    if (x < node.bounds.x1 || x > node.bounds.x2 || y < node.bounds.y1 || y > node.bounds.y2) {
+      return null;
+    }
+    // Search children first for deepest child
+    for (const child of node.children) {
+      const found = findNodeAtCoord(child, x, y);
+      if (found) return found;
+    }
+    return node;
+  };
+
+  // Expand all parent nodes leading up to selected node
+  const selectAndRevealNode = (node: ParsedNode) => {
+    setSelectedNode(node);
+    if (!parsedData) return;
+
+    const newExpands: Record<string, boolean> = {};
+    let currId: string | undefined = node.parentId;
+    while (currId) {
+      newExpands[currId] = true;
+      currId = parsedData.parentMap.get(currId);
+    }
+    setExpandedNodeIds((prev) => ({ ...prev, ...newExpands }));
+  };
+
+  const handleImageMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!parsedRoot || !imgContainerRef.current) return;
+    const rect = imgContainerRef.current.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+
+    const relX = (e.clientX - rect.left) / rect.width;
+    const relY = (e.clientY - rect.top) / rect.height;
+
+    const targetX = relX * canvasWidth;
+    const targetY = relY * canvasHeight;
+
+    const match = findNodeAtCoord(parsedRoot, targetX, targetY);
+    setHoveredNode(match);
+  };
+
+  const handleImageClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!parsedRoot || !imgContainerRef.current) return;
+    const rect = imgContainerRef.current.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+
+    const relX = (e.clientX - rect.left) / rect.width;
+    const relY = (e.clientY - rect.top) / rect.height;
+
+    const targetX = relX * canvasWidth;
+    const targetY = relY * canvasHeight;
+
+    const match = findNodeAtCoord(parsedRoot, targetX, targetY);
+    if (match) {
+      selectAndRevealNode(match);
+    }
+  };
 
   const toggleExpand = (id: string) => {
     setExpandedNodeIds((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -164,6 +302,15 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
     );
   }
 
+  // Filtered nodes for wireframe rendering
+  const wireframeNodes = useMemo(() => {
+    if (!parsedData || overlayMode === "selected") return [];
+    if (overlayMode === "clickable") {
+      return parsedData.allNodes.filter((n) => n.clickable && n.bounds && n.bounds.width > 0 && n.bounds.height > 0);
+    }
+    return parsedData.allNodes.filter((n) => n.bounds && n.bounds.width > 0 && n.bounds.height > 0);
+  }, [parsedData, overlayMode]);
+
   return (
     <div className="space-y-6">
       {/* Top Banner & Control */}
@@ -172,20 +319,31 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
         headerIcon={<Layers className="h-5 w-5" />}
         headerVariant="accent"
         headerAction={
-          <Button
-            onClick={handleDumpUI}
-            loading={loading}
-            variant="primary"
-            size="sm"
-            icon={<RefreshCw className="h-3.5 w-3.5" />}
-          >
-            Dump Present Screen
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleDumpUI}
+              loading={loading}
+              variant="primary"
+              size="sm"
+              icon={<RefreshCw className="h-3.5 w-3.5" />}
+            >
+              Dump Present Screen
+            </Button>
+          </div>
         }
       >
-        <p className="text-xs text-[var(--neo-text-muted)] font-medium mb-4">
-          Dump active screen layout hierarchy via Android <code className="font-mono text-[var(--neo-primary)]">uiautomator dump</code>. Inspect elements, view properties, and copy resource IDs/xpaths.
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+          <p className="text-xs text-[var(--neo-text-muted)] font-medium">
+            Dump active screen layout hierarchy via Android <code className="font-mono text-[var(--neo-primary)]">uiautomator dump</code>. Click elements directly on the screenshot or tree to inspect properties.
+          </p>
+
+          {dumpData && (
+            <div className="flex items-center gap-1.5 neo-box-sm bg-black/40 px-2 py-1 text-[11px] font-mono">
+              <Crosshair className="h-3.5 w-3.5 text-cyan-400" />
+              <span>Canvas: {canvasWidth} × {canvasHeight}px</span>
+            </div>
+          )}
+        </div>
 
         {errorMsg && (
           <div className="neo-box p-3 mb-4 bg-red-500/20 text-red-300 border-red-500 flex items-center justify-between text-xs font-bold">
@@ -204,7 +362,7 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
             <Layers className="h-12 w-12 mx-auto mb-3 text-[var(--neo-primary)] animate-pulse" />
             <h3 className="text-sm font-extrabold uppercase mb-1">No Screen Hierarchy Dumped Yet</h3>
             <p className="text-xs text-[var(--neo-text-muted)] max-w-sm mx-auto mb-4">
-              Click "Dump Present Screen" to capture device screenshot and fetch raw XML element tree.
+              Click "Dump Present Screen" to capture device screenshot and fetch aligned XML element tree.
             </p>
             <Button onClick={handleDumpUI} loading={loading} variant="primary" size="md" icon={<RefreshCw className="h-4 w-4" />}>
               Dump Present Screen
@@ -215,39 +373,123 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
             {/* LEFT: SCREEN CANVAS OVERLAY (4 COLS) */}
             <div className="lg:col-span-4 neo-box bg-[var(--neo-card-bg)] p-3 flex flex-col items-center">
               <div className="text-[10px] font-black uppercase tracking-wider text-[var(--neo-text-muted)] mb-2 self-start flex items-center justify-between w-full">
-                <span>Screen Visualizer</span>
-                <Badge variant="secondary">Live Snapshot</Badge>
+                <span className="flex items-center gap-1.5">
+                  <Eye className="h-3.5 w-3.5 text-[var(--neo-primary)]" />
+                  <span>Screen Visualizer</span>
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setOverlayMode("selected")}
+                    className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
+                      overlayMode === "selected" ? "bg-[var(--neo-primary)] text-black" : "bg-black/30 text-zinc-400"
+                    }`}
+                  >
+                    Focus
+                  </button>
+                  <button
+                    onClick={() => setOverlayMode("clickable")}
+                    className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
+                      overlayMode === "clickable" ? "bg-amber-400 text-black" : "bg-black/30 text-zinc-400"
+                    }`}
+                  >
+                    Clickable
+                  </button>
+                  <button
+                    onClick={() => setOverlayMode("all")}
+                    className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
+                      overlayMode === "all" ? "bg-cyan-400 text-black" : "bg-black/30 text-zinc-400"
+                    }`}
+                  >
+                    All Boxes
+                  </button>
+                </div>
               </div>
 
               {dumpData.data_url || dumpData.screenshot_path ? (
-                <div className="relative border-2 border-black rounded overflow-hidden max-h-[500px] inline-block bg-black">
+                <div
+                  ref={imgContainerRef}
+                  onClick={handleImageClick}
+                  onMouseMove={handleImageMouseMove}
+                  onMouseLeave={() => setHoveredNode(null)}
+                  className="relative border-2 border-black rounded overflow-hidden max-h-[520px] inline-block bg-black cursor-crosshair shadow-md select-none"
+                >
                   <img
                     src={dumpData.data_url || convertFileSrc(dumpData.screenshot_path)}
                     alt="Device Screen"
-                    className="max-h-[500px] w-auto object-contain block"
+                    onLoad={(e) => {
+                      const img = e.currentTarget;
+                      if (img.naturalWidth && img.naturalHeight) {
+                        setScreenDim({ width: img.naturalWidth, height: img.naturalHeight });
+                      }
+                    }}
+                    className="max-h-[520px] w-auto object-contain block pointer-events-none"
                   />
-                  {/* Bounding box highlight overlay */}
-                  {(selectedNode?.bounds || hoveredNode?.bounds) && (
+
+                  {/* Wireframe Outline Overlays */}
+                  {wireframeNodes.map((wNode) => {
+                    if (!wNode.bounds) return null;
+                    const isClickable = wNode.clickable;
+                    return (
+                      <div
+                        key={wNode.id}
+                        className={`absolute pointer-events-none border ${
+                          isClickable ? "border-amber-400/60 bg-amber-400/5" : "border-cyan-400/30"
+                        }`}
+                        style={{
+                          top: `${(wNode.bounds.y1 / canvasHeight) * 100}%`,
+                          left: `${(wNode.bounds.x1 / canvasWidth) * 100}%`,
+                          width: `${(wNode.bounds.width / canvasWidth) * 100}%`,
+                          height: `${(wNode.bounds.height / canvasHeight) * 100}%`,
+                        }}
+                      />
+                    );
+                  })}
+
+                  {/* Hovered Element Bounding Box */}
+                  {hoveredNode && hoveredNode.bounds && hoveredNode.id !== selectedNode?.id && (
                     <div
-                      className={`absolute pointer-events-none border-2 transition-all ${
-                        selectedNode?.bounds ? "border-emerald-400 bg-emerald-500/30" : "border-cyan-400 bg-cyan-500/20"
-                      }`}
+                      className="absolute pointer-events-none border-2 border-cyan-400 bg-cyan-500/20 z-10 transition-all"
                       style={{
-                        top: `${((hoveredNode?.bounds || selectedNode?.bounds)!.y1 / 2560) * 100}%`,
-                        left: `${((hoveredNode?.bounds || selectedNode?.bounds)!.x1 / 1440) * 100}%`,
-                        width: `${(((hoveredNode?.bounds || selectedNode?.bounds)!.width) / 1440) * 100}%`,
-                        height: `${(((hoveredNode?.bounds || selectedNode?.bounds)!.height) / 2560) * 100}%`,
+                        top: `${(hoveredNode.bounds.y1 / canvasHeight) * 100}%`,
+                        left: `${(hoveredNode.bounds.x1 / canvasWidth) * 100}%`,
+                        width: `${(hoveredNode.bounds.width / canvasWidth) * 100}%`,
+                        height: `${(hoveredNode.bounds.height / canvasHeight) * 100}%`,
                       }}
-                    />
+                    >
+                      <span className="absolute -top-5 left-0 bg-cyan-950/90 text-cyan-200 border border-cyan-500 px-1 py-0.2 rounded text-[9px] font-mono whitespace-nowrap shadow">
+                        {hoveredNode.className}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Selected Element Bounding Box */}
+                  {selectedNode && selectedNode.bounds && (
+                    <div
+                      className="absolute pointer-events-none border-2 border-emerald-400 bg-emerald-500/30 z-20 transition-all shadow-[0_0_12px_rgba(52,211,153,0.5)]"
+                      style={{
+                        top: `${(selectedNode.bounds.y1 / canvasHeight) * 100}%`,
+                        left: `${(selectedNode.bounds.x1 / canvasWidth) * 100}%`,
+                        width: `${(selectedNode.bounds.width / canvasWidth) * 100}%`,
+                        height: `${(selectedNode.bounds.height / canvasHeight) * 100}%`,
+                      }}
+                    >
+                      <span className="absolute -top-5 left-0 bg-emerald-950/90 text-emerald-300 border border-emerald-400 px-1 py-0.2 rounded text-[9px] font-mono font-bold whitespace-nowrap shadow">
+                        {selectedNode.className} [{selectedNode.bounds.width}×{selectedNode.bounds.height}]
+                      </span>
+                    </div>
                   )}
                 </div>
               ) : (
                 <div className="py-20 text-xs text-[var(--neo-text-muted)] font-bold">Screenshot unavailable</div>
               )}
+
+              <div className="mt-2 text-[10px] text-[var(--neo-text-muted)] text-center font-medium">
+                💡 Tip: Click anywhere on the screenshot to instantly select and highlight that exact UI element.
+              </div>
             </div>
 
             {/* MIDDLE: XML NODE TREE (5 COLS) */}
-            <div className="lg:col-span-5 neo-box bg-[var(--neo-card-bg)] p-3 flex flex-col h-[560px]">
+            <div className="lg:col-span-5 neo-box bg-[var(--neo-card-bg)] p-3 flex flex-col h-[580px]">
               <div className="flex items-center justify-between gap-2 mb-2">
                 <span className="text-[10px] font-black uppercase tracking-wider text-[var(--neo-text-muted)]">
                   UI Hierarchy Tree
@@ -284,7 +526,7 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
                     node={parsedRoot}
                     selectedNode={selectedNode}
                     hoveredNode={hoveredNode}
-                    onSelectNode={setSelectedNode}
+                    onSelectNode={selectAndRevealNode}
                     onHoverNode={setHoveredNode}
                     searchTerm={searchTerm.toLowerCase()}
                     expandedNodeIds={expandedNodeIds}
@@ -297,10 +539,15 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
             </div>
 
             {/* RIGHT: NODE PROPERTIES & COPIER (3 COLS) */}
-            <div className="lg:col-span-3 neo-box bg-[var(--neo-card-bg)] p-3 flex flex-col justify-between h-[560px] overflow-y-auto custom-scrollbar">
+            <div className="lg:col-span-3 neo-box bg-[var(--neo-card-bg)] p-3 flex flex-col justify-between h-[580px] overflow-y-auto custom-scrollbar">
               <div>
-                <div className="text-[10px] font-black uppercase tracking-wider text-[var(--neo-text-muted)] mb-3 pb-1 border-b border-black/20">
-                  Element Inspector
+                <div className="text-[10px] font-black uppercase tracking-wider text-[var(--neo-text-muted)] mb-3 pb-1 border-b border-black/20 flex items-center justify-between">
+                  <span>Element Inspector</span>
+                  {selectedNode?.bounds && (
+                    <span className="text-[9px] font-mono text-cyan-400 font-normal">
+                      {selectedNode.bounds.width}×{selectedNode.bounds.height}px
+                    </span>
+                  )}
                 </div>
 
                 {selectedNode ? (
@@ -342,6 +589,22 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
                       </div>
                     )}
 
+                    {selectedNode.contentDesc && (
+                      <div>
+                        <span className="text-[10px] font-extrabold text-[var(--neo-text-muted)] uppercase block">Content Desc</span>
+                        <div className="flex items-center justify-between bg-black/30 p-1.5 rounded font-mono break-all text-[11px]">
+                          <span>"{selectedNode.contentDesc}"</span>
+                          <button
+                            onClick={() => handleCopy(selectedNode.contentDesc, "cdesc")}
+                            className="p-1 hover:bg-white/10 rounded shrink-0 ml-1 cursor-pointer"
+                            title="Copy Content Desc"
+                          >
+                            {copiedKey === "cdesc" ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {selectedNode.boundsStr && (
                       <div>
                         <span className="text-[10px] font-extrabold text-[var(--neo-text-muted)] uppercase block">Bounds</span>
@@ -365,7 +628,7 @@ export const UIInspector: React.FC<UIInspectorProps> = ({ activeDevice }) => {
                   </div>
                 ) : (
                   <div className="text-center py-12 text-xs text-[var(--neo-text-muted)] font-bold">
-                    Select an element from the XML tree to inspect properties
+                    Select an element from the XML tree or click on the screenshot to inspect properties
                   </div>
                 )}
               </div>

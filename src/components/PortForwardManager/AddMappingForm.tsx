@@ -1,5 +1,14 @@
 import { Plus, Eye, Bookmark } from "lucide-react";
 import { SpecType } from "./types";
+import { Select, SelectOption } from "../ui/Select";
+
+const SPEC_OPTIONS: SelectOption<SpecType>[] = [
+  { value: "tcp", label: "tcp:" },
+  { value: "localabstract", label: "localabstract:" },
+  { value: "localreserved", label: "localreserved:" },
+  { value: "localfilesystem", label: "localfilesystem:" },
+  { value: "jdwp", label: "jdwp:" },
+];
 
 interface AddMappingFormProps {
   activeTab: "forward" | "reverse";
@@ -61,18 +70,14 @@ export function AddMappingForm({
           <label className="text-xs font-black uppercase text-[var(--neo-text-muted)]">
             {activeTab === "forward" ? "Host (PC) Spec" : "Host Target Spec"}
           </label>
-          <div className="flex gap-2">
-            <select
+          <div className="flex gap-2 items-center">
+            <Select
+              options={SPEC_OPTIONS}
               value={hostType}
-              onChange={(e) => setHostType(e.target.value as SpecType)}
-              className="neo-input px-3 py-2 text-xs font-bold bg-[var(--neo-card-bg)] text-[var(--neo-text)] shrink-0 w-36"
-            >
-              <option value="tcp">tcp:</option>
-              <option value="localabstract">localabstract:</option>
-              <option value="localreserved">localreserved:</option>
-              <option value="localfilesystem">localfilesystem:</option>
-              <option value="jdwp">jdwp:</option>
-            </select>
+              onChange={setHostType}
+              variant="card"
+              className="shrink-0"
+            />
             <input
               type="text"
               placeholder={hostType === "tcp" ? "Port (e.g. 6100)" : "Socket name / PID"}
@@ -91,18 +96,14 @@ export function AddMappingForm({
           <label className="text-xs font-black uppercase text-[var(--neo-text-muted)]">
             {activeTab === "forward" ? "Device (Phone) Spec" : "Device Source Spec"}
           </label>
-          <div className="flex gap-2">
-            <select
+          <div className="flex gap-2 items-center">
+            <Select
+              options={SPEC_OPTIONS}
               value={deviceType}
-              onChange={(e) => setDeviceType(e.target.value as SpecType)}
-              className="neo-input px-3 py-2 text-xs font-bold bg-[var(--neo-card-bg)] text-[var(--neo-text)] shrink-0 w-36"
-            >
-              <option value="tcp">tcp:</option>
-              <option value="localabstract">localabstract:</option>
-              <option value="localreserved">localreserved:</option>
-              <option value="localfilesystem">localfilesystem:</option>
-              <option value="jdwp">jdwp:</option>
-            </select>
+              onChange={setDeviceType}
+              variant="card"
+              className="shrink-0"
+            />
             <input
               type="text"
               placeholder={deviceType === "tcp" ? "Port (e.g. 7100)" : "Socket name / PID"}

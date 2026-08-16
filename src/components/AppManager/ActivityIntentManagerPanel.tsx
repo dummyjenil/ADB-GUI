@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { Select } from "../ui/Select";
 import { IntentExtra, IntentPayload } from "../../types/app_manager";
 import { Button } from "../ui/Button";
 import {
@@ -278,18 +279,16 @@ export const ActivityIntentManagerPanel: React.FC<ActivityIntentManagerPanelProp
               Activity / Component Component
             </label>
             {activities.length > 0 ? (
-              <select
+              <Select
+                options={[
+                  { value: "", label: "-- None / Select Activity --" },
+                  ...activities.map((act) => ({ value: act, label: act })),
+                ]}
                 value={selectedActivity}
-                onChange={(e) => setSelectedActivity(e.target.value)}
-                className="neo-input w-full py-1.5 px-2.5 font-mono text-xs bg-[var(--neo-card-bg)] text-[var(--neo-text)]"
-              >
-                <option value="">-- None / Select Activity --</option>
-                {activities.map((act) => (
-                  <option key={act} value={act}>
-                    {act}
-                  </option>
-                ))}
-              </select>
+                onChange={setSelectedActivity}
+                variant="card"
+                className="w-full"
+              />
             ) : (
               <input
                 type="text"
@@ -317,20 +316,21 @@ export const ActivityIntentManagerPanel: React.FC<ActivityIntentManagerPanelProp
                 onChange={(e) => setAction(e.target.value)}
                 className="neo-input w-full py-1.5 px-2.5 font-mono text-xs"
               />
-              <select
-                onChange={(e) => {
-                  if (e.target.value) setAction(e.target.value);
-                }}
+              <Select
+                options={[
+                  { value: "", label: "Presets..." },
+                  ...COMMON_ACTIONS.map((act) => ({
+                    value: act,
+                    label: act.split(".").pop() || act,
+                  })),
+                ]}
                 value=""
-                className="neo-input py-1.5 px-2 font-mono text-xs w-28 shrink-0 bg-[var(--neo-card-bg)] text-[var(--neo-text)]"
-              >
-                <option value="">Presets...</option>
-                {COMMON_ACTIONS.map((act) => (
-                  <option key={act} value={act}>
-                    {act.split(".").pop()}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => {
+                  if (val) setAction(val);
+                }}
+                variant="card"
+                className="shrink-0"
+              />
             </div>
           </div>
 
@@ -395,17 +395,19 @@ export const ActivityIntentManagerPanel: React.FC<ActivityIntentManagerPanelProp
                     onChange={(e) => handleUpdateExtra(idx, "key", e.target.value)}
                     className="neo-input py-1 px-2 font-mono text-xs flex-1"
                   />
-                  <select
+                  <Select
+                    options={[
+                      { value: "string", label: "String (--es)" },
+                      { value: "int", label: "Int (--ei)" },
+                      { value: "bool", label: "Bool (--ez)" },
+                      { value: "long", label: "Long (--el)" },
+                      { value: "float", label: "Float (--ef)" },
+                    ]}
                     value={extra.extra_type}
-                    onChange={(e) => handleUpdateExtra(idx, "extra_type", e.target.value)}
-                    className="neo-input py-1 px-2 font-mono text-xs w-28 bg-[var(--neo-card-bg)] text-[var(--neo-text)] shrink-0"
-                  >
-                    <option value="string">String (--es)</option>
-                    <option value="int">Int (--ei)</option>
-                    <option value="bool">Bool (--ez)</option>
-                    <option value="long">Long (--el)</option>
-                    <option value="float">Float (--ef)</option>
-                  </select>
+                    onChange={(val) => handleUpdateExtra(idx, "extra_type", val)}
+                    variant="card"
+                    className="shrink-0"
+                  />
                   <input
                     type="text"
                     placeholder="Value (e.g. 12345)"

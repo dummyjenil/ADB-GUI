@@ -1,4 +1,5 @@
 import React from "react";
+import { Select } from "../ui/Select";
 import {
   Terminal as TerminalIcon,
   Plus,
@@ -79,20 +80,18 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
           <div className="flex items-center gap-1.5 text-xs font-bold bg-[var(--neo-card-bg)] px-2.5 py-1 border border-[var(--neo-border)] shadow-[2px_2px_0px_0px_var(--neo-shadow)]">
             <Smartphone className="h-3.5 w-3.5 text-cyan-400" />
             <span className="text-[var(--neo-text-muted)]">Device:</span>
-            <select
+            <Select
+              options={[
+                { value: "", label: `Default (${activeDevice || "None"})` },
+                ...devices.map((d) => ({
+                  value: String(d.serial),
+                  label: `${d.model} (${d.serial})`,
+                })),
+              ]}
               value={activeTab?.targetSerial || ""}
-              onChange={(e) => onSetTabDevice(e.target.value || null)}
-              className="bg-transparent font-extrabold focus:outline-none cursor-pointer text-emerald-400"
-            >
-              <option value="" className="bg-[#1e293b] text-white">
-                Default ({activeDevice || "None"})
-              </option>
-              {devices.map((d) => (
-                <option key={String(d.serial)} value={String(d.serial)} className="bg-[#1e293b] text-white">
-                  {d.model} ({d.serial})
-                </option>
-              ))}
-            </select>
+              onChange={(val) => onSetTabDevice(val || null)}
+              variant="card"
+            />
           </div>
 
           {/* Session Status Badge */}

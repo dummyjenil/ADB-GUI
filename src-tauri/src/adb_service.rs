@@ -476,16 +476,10 @@ pub async fn get_device_clipboard(serial: String) -> std::result::Result<String,
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
 
-    if !stdout.is_empty() && !stdout.starts_with("SecurityException") && !stdout.starts_with("Error:") {
+    if !stdout.is_empty() && !stdout.starts_with("SecurityException") && !stdout.starts_with("Error:") && !stdout.contains("No shell command") {
         Ok(stdout)
-    } else if !stderr.is_empty() {
-        if stderr.contains("SecurityException") || stderr.contains("Permission Denial") {
-            Err("Android restricted background clipboard reading on this device (requires active app focus)".to_string())
-        } else {
-            Err(stderr)
-        }
     } else {
-        Ok("Clipboard is currently empty on device".to_string())
+        Err("Android 10+ security restricts background clipboard reading over raw ADB. Use 'Push to Device' or focus an input field on device.".to_string())
     }
 }
 
@@ -637,9 +631,16 @@ pub async fn adjust_volume(serial: String, stream_type: String, direction: Strin
         _ => "raise",
     };
 
-    // 1. Try cmd media_session volume --stream <id> --adj <raise|lower|mute|unmute>
+    // 1. Try cmd media_session volume --stream <id> --set 0 for mute, or --adj <raise|lower>
+    let mut media_args = vec!["-s", &serial, "shell", "cmd", "media_session", "volume", "--stream", stream_id];
+    if direction == "mute" {
+        media_args.extend_from_slice(&["--set", "0"]);
+    } else {
+        media_args.extend_from_slice(&["--adj", adj_arg, "--show"]);
+    }
+
     let output1 = Command::new("adb")
-        .args(["-s", &serial, "shell", "cmd", "media_session", "volume", "--stream", stream_id, "--adj", adj_arg, "--show"])
+        .args(&media_args)
         .output();
 
     if let Ok(out) = output1 {

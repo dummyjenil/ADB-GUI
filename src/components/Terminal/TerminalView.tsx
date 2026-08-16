@@ -87,9 +87,28 @@ export const TerminalView: React.FC<TerminalViewProps> = ({
 
     // Input listener
     const dataDisposable = term.onData((data) => {
+      let cleaned = data;
+      // Automatically strip host 'adb [flags] shell/exec-out' prefix if user pastes full command
+      if (cleaned.length > 5 && /^adb(\.exe)?\s+/i.test(cleaned.trim())) {
+        const hasTrailingNewline = cleaned.endsWith("\r") || cleaned.endsWith("\n");
+        let unwrapped = cleaned.trim();
+        unwrapped = unwrapped.replace(/^adb(\.exe)?(\s+-s\s+\S+)?\s+(shell|exec-out)\s+/i, "");
+        if (/^adb(\.exe)?(\s+-s\s+\S+)?\s+shell\s*$/i.test(unwrapped)) {
+          unwrapped = "";
+        }
+        if (
+          (unwrapped.startsWith('"') && unwrapped.endsWith('"')) ||
+          (unwrapped.startsWith("'") && unwrapped.endsWith("'"))
+        ) {
+          if (unwrapped.length >= 2) {
+            unwrapped = unwrapped.slice(1, -1);
+          }
+        }
+        cleaned = unwrapped + (hasTrailingNewline ? "\r" : "");
+      }
       invoke("write_terminal_input", {
         sessionId,
-        input: data,
+        input: cleaned,
       }).catch(console.error);
     });
 

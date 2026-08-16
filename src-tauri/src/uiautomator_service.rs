@@ -10,6 +10,8 @@ pub struct UiDumpResult {
     pub data_url: Option<String>,
     pub xml_content: String,
     pub error: Option<String>,
+    pub display_width: Option<u32>,
+    pub display_height: Option<u32>,
 }
 
 fn to_base64(bytes: &[u8]) -> String {
@@ -63,7 +65,29 @@ pub async fn dump_ui_hierarchy(serial: String) -> Result<UiDumpResult, String> {
                 data_url: None,
                 xml_content: String::new(),
                 error: Some("Phone screen is turned OFF or asleep. Please turn on and unlock your phone before inspecting UI.".to_string()),
+                display_width: None,
+                display_height: None,
             });
+        }
+    }
+
+    // Query physical / override display dimensions
+    let mut disp_w = None;
+    let mut disp_h = None;
+    if let Ok(wm_out) = Command::new("adb").args(["-s", &serial, "shell", "wm", "size"]).output() {
+        let wm_str = String::from_utf8_lossy(&wm_out.stdout);
+        for line in wm_str.lines() {
+            if line.contains("Override size:") || line.contains("Physical size:") {
+                if let Some(dim) = line.split(':').nth(1) {
+                    let parts: Vec<&str> = dim.trim().split('x').collect();
+                    if parts.len() == 2 {
+                        if let (Ok(w), Ok(h)) = (parts[0].trim().parse::<u32>(), parts[1].trim().parse::<u32>()) {
+                            disp_w = Some(w);
+                            disp_h = Some(h);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -81,6 +105,8 @@ pub async fn dump_ui_hierarchy(serial: String) -> Result<UiDumpResult, String> {
             data_url: None,
             xml_content: String::new(),
             error: Some(format!("Screen capture failed: {}. Ensure device screen is ON and not displaying DRM-protected content.", if err_msg.is_empty() { "No image output" } else { &err_msg })),
+            display_width: disp_w,
+            display_height: disp_h,
         });
     }
 
@@ -102,6 +128,8 @@ pub async fn dump_ui_hierarchy(serial: String) -> Result<UiDumpResult, String> {
             data_url: Some(data_url_str),
             xml_content: String::new(),
             error: Some(format!("uiautomator dump failed: {}. Phone might be in sleep or UI transition.", if err_msg.is_empty() { dump_msg.to_string() } else { err_msg.to_string() })),
+            display_width: disp_w,
+            display_height: disp_h,
         });
     }
 
@@ -125,6 +153,8 @@ pub async fn dump_ui_hierarchy(serial: String) -> Result<UiDumpResult, String> {
             data_url: Some(data_url_str),
             xml_content: String::new(),
             error: Some("Retrieved XML hierarchy was empty. Ensure phone screen is unlocked.".to_string()),
+            display_width: disp_w,
+            display_height: disp_h,
         });
     }
 
@@ -134,6 +164,8 @@ pub async fn dump_ui_hierarchy(serial: String) -> Result<UiDumpResult, String> {
         data_url: Some(data_url_str),
         xml_content: xml_str,
         error: None,
+        display_width: disp_w,
+        display_height: disp_h,
     })
 }
 
@@ -143,3 +175,4 @@ fn chrono_now() -> String {
     let since_the_epoch = start.duration_since(UNIX_EPOCH).unwrap_or_default();
     format!("{}", since_the_epoch.as_secs())
 }
+
