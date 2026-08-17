@@ -9,6 +9,7 @@ pub mod screen_tools;
 pub mod uiautomator_service;
 pub mod notification_service;
 pub mod communication_service;
+pub mod frida_service;
 
 use adb_service::*;
 use device_dashboard::*;
@@ -21,12 +22,14 @@ use screen_tools::*;
 use uiautomator_service::*;
 use notification_service::*;
 use communication_service::*;
+use frida_service::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(AdbState::new())
+        .manage(FridaState::new())
         .invoke_handler(tauri::generate_handler![
             list_devices,
             pair_with_code,
@@ -114,7 +117,14 @@ pub fn run() {
             get_sms_list,
             send_sms,
             open_sms_composer,
-            get_contacts_list
+            get_contacts_list,
+            check_frida_server_status,
+            start_frida_server,
+            stop_frida_server,
+            push_frida_server_binary,
+            list_frida_processes,
+            run_frida_script,
+            stop_frida_script
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

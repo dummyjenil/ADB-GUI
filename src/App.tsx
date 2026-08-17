@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ThemeProvider } from "./context/ThemeContext";
-import { Navbar, DeviceInfo } from "./components/Navbar";
+import { Navbar, DeviceInfo, AppMode } from "./components/Navbar";
+import { ModeSelectorLanding } from "./components/ModeSelectorLanding";
+import { FridaStudio } from "./components/FridaStudio/FridaStudio";
 import { DeviceManager } from "./components/DeviceManager";
 import { QuickControls } from "./components/QuickControls";
 import { KeyboardClipboard } from "./components/KeyboardClipboard";
@@ -36,6 +38,7 @@ type Tab =
   | "mirror";
 
 export function AppContent() {
+  const [appMode, setAppMode] = useState<AppMode>("landing");
   const [activeTab, setActiveTab] = useState<Tab>("devices");
   const [devices, setDevices] = useState<DeviceInfo[]>([]);
   const [activeDevice, setActiveDevice] = useState<string | null>(null);
@@ -128,115 +131,137 @@ export function AppContent() {
         loading={loading}
         autoRefresh={autoRefreshDevices}
         onToggleAutoRefresh={() => setAutoRefreshDevices((prev) => !prev)}
+        activeMode={appMode}
+        onSelectMode={setAppMode}
       />
 
-      {/* Main Body */}
-      <div className="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto p-3 sm:p-6 gap-4 sm:gap-6">
-        {/* Sidebar / Horizontal Navigation */}
-        <aside className="w-full lg:w-64 neo-box p-2 sm:p-3 flex flex-row lg:flex-col gap-2 shrink-0 h-fit sticky top-0 lg:top-20 bg-[var(--neo-card-bg)] overflow-x-auto custom-scrollbar z-40">
-          <div className="hidden lg:block text-[10px] font-black uppercase tracking-wider text-[var(--neo-text-muted)] px-3 py-1">
-            Navigation Menu
-          </div>
+      {/* Mode 1: Landing Workspace Selector Screen */}
+      {appMode === "landing" && (
+        <div className="flex-1 flex flex-col justify-center">
+          <ModeSelectorLanding
+            onSelectMode={(mode) => setAppMode(mode)}
+            connectedDevicesCount={devices.length}
+            activeDevice={activeDevice}
+          />
+        </div>
+      )}
 
-          {navItems.map((item) => {
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={`neo-btn shrink-0 w-auto lg:w-full px-3 sm:px-3.5 py-2.5 sm:py-3 text-xs font-extrabold flex items-center justify-between gap-2.5 transition-all ${
-                  isActive
-                    ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)] border-[var(--neo-border)] shadow-[4px_4px_0px_0px_var(--neo-shadow)]"
-                    : "bg-transparent text-[var(--neo-text)] border-transparent shadow-none hover:bg-black/10"
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  {item.icon}
-                  <span className="whitespace-nowrap">{item.label}</span>
-                </span>
-                {item.badge && <Badge variant="warning">{item.badge}</Badge>}
-              </button>
-            );
-          })}
-        </aside>
+      {/* Mode 2: Frida Dynamic Instrumentation Studio */}
+      {appMode === "frida" && (
+        <div className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 animate-fadeIn">
+          <FridaStudio activeDevice={activeDevice} />
+        </div>
+      )}
 
-        {/* Main Content Area */}
-        <main className="flex-1 min-w-0">
-          {activeTab === "devices" && (
-            <DeviceManager
-              devices={devices}
-              activeDevice={activeDevice}
-              setActiveDevice={setActiveDevice}
-              onRefresh={fetchDevices}
-            />
-          )}
+      {/* Mode 3: ADB Tools Studio */}
+      {appMode === "adb" && (
+        <div className="flex-1 flex flex-col lg:flex-row max-w-7xl w-full mx-auto p-3 sm:p-6 gap-4 sm:gap-6 animate-fadeIn">
+          {/* Sidebar / Horizontal Navigation */}
+          <aside className="w-full lg:w-64 neo-box p-2 sm:p-3 flex flex-row lg:flex-col gap-2 shrink-0 h-fit sticky top-0 lg:top-20 bg-[var(--neo-card-bg)] overflow-x-auto custom-scrollbar z-40">
+            <div className="hidden lg:block text-[10px] font-black uppercase tracking-wider text-[var(--neo-text-muted)] px-3 py-1">
+              ADB Navigation Menu
+            </div>
 
-          {activeTab === "controls" && (
-            <QuickControls
-              activeDevice={activeDevice}
-              onViewCommand={(cmd) => setPreviewCommand(cmd)}
-            />
-          )}
+            {navItems.map((item) => {
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`neo-btn shrink-0 w-auto lg:w-full px-3 sm:px-3.5 py-2.5 sm:py-3 text-xs font-extrabold flex items-center justify-between gap-2.5 transition-all ${
+                    isActive
+                      ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)] border-[var(--neo-border)] shadow-[4px_4px_0px_0px_var(--neo-shadow)]"
+                      : "bg-transparent text-[var(--neo-text)] border-transparent shadow-none hover:bg-black/10"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    {item.icon}
+                    <span className="whitespace-nowrap">{item.label}</span>
+                  </span>
+                  {item.badge && <Badge variant="warning">{item.badge}</Badge>}
+                </button>
+              );
+            })}
+          </aside>
 
-          {activeTab === "keyboard" && (
-            <KeyboardClipboard
-              activeDevice={activeDevice}
-              onViewCommand={(cmd) => setPreviewCommand(cmd)}
-            />
-          )}
+          {/* Main Content Area */}
+          <main className="flex-1 min-w-0">
+            {activeTab === "devices" && (
+              <DeviceManager
+                devices={devices}
+                activeDevice={activeDevice}
+                setActiveDevice={setActiveDevice}
+                onRefresh={fetchDevices}
+              />
+            )}
 
-          {activeTab === "screenstudio" && <ScreenStudio activeDevice={activeDevice} />}
+            {activeTab === "controls" && (
+              <QuickControls
+                activeDevice={activeDevice}
+                onViewCommand={(cmd) => setPreviewCommand(cmd)}
+              />
+            )}
 
-          {activeTab === "inspector" && <UIInspector activeDevice={activeDevice} />}
+            {activeTab === "keyboard" && (
+              <KeyboardClipboard
+                activeDevice={activeDevice}
+                onViewCommand={(cmd) => setPreviewCommand(cmd)}
+              />
+            )}
 
-          {activeTab === "notifications" && <NotificationHub activeDevice={activeDevice} />}
+            {activeTab === "screenstudio" && <ScreenStudio activeDevice={activeDevice} />}
 
-          {activeTab === "calls" && (
-            <CommunicationStudio
-              activeDevice={activeDevice}
-              onViewCommand={(cmd) => setPreviewCommand(cmd)}
-            />
-          )}
+            {activeTab === "inspector" && <UIInspector activeDevice={activeDevice} />}
 
-          {activeTab === "apk" && (
-            <AppManager
-              activeDevice={activeDevice}
-              onViewCommand={(cmd) => setPreviewCommand(cmd)}
-              onOpenLogcat={(pkgName) => {
-                setSelectedLogcatPackage(pkgName);
-                setActiveTab("logcat");
-              }}
-            />
-          )}
+            {activeTab === "notifications" && <NotificationHub activeDevice={activeDevice} />}
 
-          {activeTab === "files" && <FileManager activeDevice={activeDevice} />}
+            {activeTab === "calls" && (
+              <CommunicationStudio
+                activeDevice={activeDevice}
+                onViewCommand={(cmd) => setPreviewCommand(cmd)}
+              />
+            )}
 
-          {activeTab === "logcat" && (
-            <LogcatStudio
-              activeDevice={activeDevice}
-              initialPackage={selectedLogcatPackage}
-            />
-          )}
+            {activeTab === "apk" && (
+              <AppManager
+                activeDevice={activeDevice}
+                onViewCommand={(cmd) => setPreviewCommand(cmd)}
+                onOpenLogcat={(pkgName) => {
+                  setSelectedLogcatPackage(pkgName);
+                  setActiveTab("logcat");
+                }}
+              />
+            )}
 
-          {activeTab === "terminal" && (
-            <ShellTerminal
-              devices={devices}
-              activeDevice={activeDevice}
-              pendingCommand={pendingTerminalCommand}
-              onClearPendingCommand={() => setPendingTerminalCommand(null)}
-            />
-          )}
+            {activeTab === "files" && <FileManager activeDevice={activeDevice} />}
 
-          {activeTab === "forward" && (
-            <PortForwardManager
-              activeDevice={activeDevice}
-              onViewCommand={(cmd) => setPreviewCommand(cmd)}
-            />
-          )}
+            {activeTab === "logcat" && (
+              <LogcatStudio
+                activeDevice={activeDevice}
+                initialPackage={selectedLogcatPackage}
+              />
+            )}
 
-          {activeTab === "mirror" && <ScreenMirroringTodo />}
-        </main>
-      </div>
+            {activeTab === "terminal" && (
+              <ShellTerminal
+                devices={devices}
+                activeDevice={activeDevice}
+                pendingCommand={pendingTerminalCommand}
+                onClearPendingCommand={() => setPendingTerminalCommand(null)}
+              />
+            )}
+
+            {activeTab === "forward" && (
+              <PortForwardManager
+                activeDevice={activeDevice}
+                onViewCommand={(cmd) => setPreviewCommand(cmd)}
+              />
+            )}
+
+            {activeTab === "mirror" && <ScreenMirroringTodo />}
+          </main>
+        </div>
+      )}
 
       {/* Global Command Preview Modal */}
       <CommandPreviewModal

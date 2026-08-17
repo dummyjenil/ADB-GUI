@@ -1,5 +1,5 @@
 import React from "react";
-import { Cpu, Smartphone, RefreshCw, Palette, Wifi, Usb } from "lucide-react";
+import { Cpu, Smartphone, RefreshCw, Palette, Wifi, Usb, Zap, ShieldAlert, Home } from "lucide-react";
 import { Select, SelectOption } from "./ui/Select";
 import { Button } from "./ui/Button";
 import { Badge } from "./ui/Badge";
@@ -12,6 +12,8 @@ export interface DeviceInfo {
   connection_type: String;
 }
 
+export type AppMode = "landing" | "adb" | "frida";
+
 interface NavbarProps {
   devices: DeviceInfo[];
   activeDevice: string | null;
@@ -20,6 +22,8 @@ interface NavbarProps {
   loading: boolean;
   autoRefresh?: boolean;
   onToggleAutoRefresh?: () => void;
+  activeMode: AppMode;
+  onSelectMode: (mode: AppMode) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -30,6 +34,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   loading,
   autoRefresh = true,
   onToggleAutoRefresh,
+  activeMode,
+  onSelectMode,
 }) => {
   const { currentTheme, setThemeId, availableThemes } = useTheme();
 
@@ -53,23 +59,69 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="sticky top-0 z-50 neo-box rounded-none border-t-0 border-x-0 bg-[var(--neo-card-bg)] px-4 sm:px-6 py-3 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-md">
-      {/* Brand Header */}
-      <div className="flex items-center justify-between md:justify-start gap-3">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 neo-btn bg-[var(--neo-primary)] text-[var(--neo-primary-text)] flex items-center justify-center shrink-0">
+      {/* Brand Header & Mode Switcher */}
+      <div className="flex flex-wrap items-center justify-between md:justify-start gap-4">
+        <div
+          onClick={() => onSelectMode("landing")}
+          className="flex items-center gap-3 cursor-pointer group"
+          title="Click to go to Home Workspace Selection"
+        >
+          <div className="h-10 w-10 neo-btn bg-[var(--neo-primary)] text-[var(--neo-primary-text)] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
             <Cpu className="h-5 w-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-sm sm:text-base font-black tracking-tight text-[var(--neo-text)] uppercase">
-                ADB Control Studio
+                {activeMode === "frida" ? "Frida Dynamic Studio" : "ADB Control Studio"}
               </h1>
-              <Badge variant="accent">v2.0 Neo</Badge>
+              <Badge variant={activeMode === "frida" ? "accent" : "primary"}>
+                {activeMode === "frida" ? "FRIDA RUNTIME" : "ADB v2.0"}
+              </Badge>
             </div>
             <p className="text-[10px] sm:text-[11px] text-[var(--neo-text-muted)] font-mono font-semibold">
-              Tauri v2 • Native Async ADB
+              Tauri v2 • {activeMode === "frida" ? "Dynamic Instrumentation" : "Native Async ADB"}
             </p>
           </div>
+        </div>
+
+        {/* Workspace Mode Switcher */}
+        <div className="flex items-center p-1 bg-black/10 rounded neo-box border">
+          <button
+            onClick={() => onSelectMode("landing")}
+            className={`px-2.5 py-1 text-xs font-bold neo-btn flex items-center gap-1.5 transition-all ${
+              activeMode === "landing"
+                ? "bg-[var(--neo-card-bg)] text-[var(--neo-text)] shadow-sm"
+                : "bg-transparent text-[var(--neo-text-muted)] hover:text-[var(--neo-text)]"
+            }`}
+            title="Overview & Mode Selector"
+          >
+            <Home className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Hub</span>
+          </button>
+
+          <button
+            onClick={() => onSelectMode("adb")}
+            className={`px-2.5 py-1 text-xs font-bold neo-btn flex items-center gap-1.5 transition-all ${
+              activeMode === "adb"
+                ? "bg-[var(--neo-primary)] text-[var(--neo-primary-text)] shadow-[2px_2px_0px_0px_var(--neo-shadow)]"
+                : "bg-transparent text-[var(--neo-text-muted)] hover:text-[var(--neo-text)]"
+            }`}
+          >
+            <Zap className="h-3.5 w-3.5" />
+            <span>ADB Tools</span>
+          </button>
+
+          <button
+            onClick={() => onSelectMode("frida")}
+            className={`px-2.5 py-1 text-xs font-bold neo-btn flex items-center gap-1.5 transition-all ${
+              activeMode === "frida"
+                ? "bg-purple-600 text-white shadow-[2px_2px_0px_0px_var(--neo-shadow)]"
+                : "bg-transparent text-[var(--neo-text-muted)] hover:text-[var(--neo-text)]"
+            }`}
+          >
+            <ShieldAlert className="h-3.5 w-3.5" />
+            <span>Frida Studio</span>
+          </button>
         </div>
       </div>
 

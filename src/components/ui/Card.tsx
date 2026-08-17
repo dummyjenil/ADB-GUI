@@ -7,6 +7,8 @@ export interface CardProps {
   headerTitle?: React.ReactNode;
   headerIcon?: React.ReactNode;
   headerAction?: React.ReactNode;
+  title?: React.ReactNode;
+  icon?: React.ReactNode;
   headerVariant?: "primary" | "secondary" | "accent" | "dark";
   footer?: React.ReactNode;
   noPadding?: boolean;
@@ -19,10 +21,15 @@ export const Card: React.FC<CardProps> = ({
   headerTitle,
   headerIcon,
   headerAction,
+  title,
+  icon,
   headerVariant = "primary",
   footer,
   noPadding = false,
 }) => {
+  const displayTitle = headerTitle ?? title;
+  const displayIcon = headerIcon ?? icon;
+
   const headerVariants = {
     primary: "bg-[var(--neo-primary)] text-[var(--neo-primary-text)]",
     secondary: "bg-[var(--neo-secondary)] text-[var(--neo-secondary-text)]",
@@ -32,15 +39,15 @@ export const Card: React.FC<CardProps> = ({
 
   return (
     <div className={`neo-box overflow-hidden animate-neo-pop ${className}`}>
-      {headerTitle && (
+      {displayTitle && (
         <div
           className={`px-5 py-3.5 border-b-3 border-[var(--neo-border)] flex items-center justify-between font-bold ${
             headerVariants[headerVariant]
           }`}
         >
           <div className="flex items-center gap-2.5 text-xs sm:text-sm uppercase tracking-wide truncate">
-            {headerIcon}
-            <span className="truncate">{headerTitle}</span>
+            {displayIcon}
+            <span className="truncate">{displayTitle}</span>
           </div>
           {headerAction && <div className="shrink-0">{headerAction}</div>}
         </div>

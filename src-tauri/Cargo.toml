@@ -18,6 +18,9 @@ crate-type = ["rlib"]
 debug = 1
 incremental = true
 
+[profile.dev.package."*"]
+opt-level = 2
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -28,9 +31,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 adb_client = "3.2"
 mdns-sd = "0.21.0"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "time", "process", "io-util"] }
 qrcode = "0.14"
 rand = "0.10.2"
 rfd = "0.17.2"
 libc = "0.2.189"
+
 

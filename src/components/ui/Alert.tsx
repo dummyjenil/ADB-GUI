@@ -2,7 +2,7 @@ import React from "react";
 import { CheckCircle2, AlertCircle, Info, AlertTriangle, X } from "lucide-react";
 
 export interface AlertProps {
-  variant?: "info" | "success" | "warning" | "danger" | "primary" | "secondary";
+  variant?: "info" | "success" | "warning" | "danger" | "error" | "primary" | "secondary";
   title?: string;
   children: React.ReactNode;
   icon?: React.ReactNode;
@@ -18,6 +18,8 @@ export const Alert: React.FC<AlertProps> = ({
   onClose,
   className = "",
 }) => {
+  const normalizedVariant = variant === "error" ? "danger" : variant;
+
   const variantStyles = {
     info: "bg-cyan-500/10 border-cyan-500/30 text-cyan-200",
     success: "bg-emerald-500/10 border-emerald-500/30 text-emerald-200",
@@ -38,10 +40,10 @@ export const Alert: React.FC<AlertProps> = ({
 
   return (
     <div
-      className={`p-3 neo-box-sm border-2 flex items-start gap-2.5 text-xs ${variantStyles[variant]} ${className}`}
+      className={`p-3 neo-box-sm border-2 flex items-start gap-2.5 text-xs ${variantStyles[normalizedVariant]} ${className}`}
       role="alert"
     >
-      <div className="mt-0.5">{icon || defaultIcons[variant]}</div>
+      <div className="mt-0.5">{icon || defaultIcons[normalizedVariant]}</div>
       <div className="flex-1 min-w-0">
         {title && <div className="font-extrabold uppercase tracking-wide mb-0.5">{title}</div>}
         <div className="font-medium text-[11px] leading-relaxed">{children}</div>
