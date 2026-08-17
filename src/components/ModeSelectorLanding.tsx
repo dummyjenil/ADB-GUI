@@ -19,7 +19,7 @@ export const ModeSelectorLanding: React.FC<ModeSelectorLandingProps> = ({
       <div className="text-center space-y-3">
         <div className="inline-flex items-center gap-2 px-3 py-1 bg-black/10 rounded-full neo-box text-xs font-mono font-bold">
           <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-          <span>Professional Android Engineering & Security Suite</span>
+          <span>DroidCrack • Android Engineering & Security Suite</span>
         </div>
         <h1 className="text-3xl sm:text-5xl font-black uppercase tracking-tight text-[var(--neo-text)]">
           Choose Your Workspace

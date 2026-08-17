@@ -72,10 +72,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-sm sm:text-base font-black tracking-tight text-[var(--neo-text)] uppercase">
-                {activeMode === "frida" ? "Frida Dynamic Studio" : "ADB Control Studio"}
+                DroidCrack
               </h1>
               <Badge variant={activeMode === "frida" ? "accent" : "primary"}>
-                {activeMode === "frida" ? "FRIDA RUNTIME" : "ADB v2.0"}
+                {activeMode === "frida" ? "FRIDA STUDIO" : "ADB STUDIO"}
               </Badge>
             </div>
             <p className="text-[10px] sm:text-[11px] text-[var(--neo-text-muted)] font-mono font-semibold">

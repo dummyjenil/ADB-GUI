@@ -1,5 +1,5 @@
 [package]
-name = "adb-app"
+name = "droidcrack"
 version = "0.1.0"
 description = "A Tauri App"
 authors = ["you"]
@@ -20,6 +20,13 @@ incremental = true
 
 [profile.dev.package."*"]
 opt-level = 2
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

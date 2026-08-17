@@ -168,7 +168,7 @@ export const DeviceManager: React.FC<DeviceManagerProps> = ({
     }
   };
 
-  const qrPayload = `WIFI:T:ADB;S:ADB-GUI;P:${pairingPin};;`;
+  const qrPayload = `WIFI:T:ADB;S:DroidCrack;P:${pairingPin};;`;
 
   return (
     <div className="space-y-6">
