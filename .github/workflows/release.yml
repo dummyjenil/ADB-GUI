@@ -25,7 +25,7 @@ jobs:
             args: "--target aarch64-apple-darwin"
           - platform: "macos-13" # Intel x86_64 Mac
             args: "--target x86_64-apple-darwin"
-          - platform: "ubuntu-22.04" # Linux (.deb, .AppImage)
+          - platform: "ubuntu-latest" # Linux (.deb, .AppImage)
             args: ""
           - platform: "windows-latest" # Windows (.exe, .msi)
             args: ""
@@ -55,18 +55,16 @@ jobs:
           workspaces: "./src-tauri -> target"
 
       - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
+            libayatana-appindicator3-dev \
             librsvg2-dev \
             patchelf \
             libssl-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            javascriptcoregtk-4.1
+            libgtk-3-dev
 
       - name: Install frontend dependencies
         run: pnpm install
