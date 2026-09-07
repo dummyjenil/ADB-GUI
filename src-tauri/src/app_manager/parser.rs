@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use super::types::{PackageDetails, PackageInfo};
 use super::utils::{extract_component_name, format_app_name};
 
@@ -8,6 +8,7 @@ pub fn parse_package_list(
     disabled_pkgs: &HashSet<String>,
     running_pkgs: &HashSet<String>,
     filter: &str,
+    labels: &HashMap<String, String>,
 ) -> Vec<PackageInfo> {
     let mut result = Vec::new();
 
@@ -48,8 +49,13 @@ pub fn parse_package_list(
 
         let has_apk = !apk_path.is_empty() && apk_path.ends_with(".apk");
 
+        let app_label = labels
+            .get(&pkg_name)
+            .cloned()
+            .unwrap_or_else(|| format_app_name(&pkg_name));
+
         let info = PackageInfo {
-            name: format_app_name(&pkg_name),
+            name: app_label,
             package_name: pkg_name,
             version_name: "1.0".to_string(),
             version_code: "1".to_string(),

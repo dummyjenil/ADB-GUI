@@ -32,7 +32,8 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "resources/scrcpy-server"
+      "resources/scrcpy-server",
+      "resources/droid-agent"
     ]
   }
 }

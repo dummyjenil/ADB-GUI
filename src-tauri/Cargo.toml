@@ -37,7 +37,7 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 adb_client = "3.2"
-mdns-sd = "0.21.0"
+mdns-sd = "0.21.2"
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "time", "process", "io-util"] }
 qrcode = "0.14"
 rand = "0.10.2"

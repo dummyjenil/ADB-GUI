@@ -2,6 +2,7 @@ pub mod types;
 pub mod utils;
 pub mod parser;
 pub mod packages;
+pub mod droid_agent;
 pub mod lifecycle;
 pub mod permissions;
 pub mod intent;
@@ -9,6 +10,9 @@ pub mod dialogs;
 
 // Re-export types
 pub use types::*;
+
+// Re-export droid agent
+pub use droid_agent::*;
 
 // Re-export utility helpers
 pub use utils::*;

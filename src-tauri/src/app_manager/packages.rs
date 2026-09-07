@@ -1,17 +1,22 @@
 use std::collections::HashSet;
 use std::path::Path;
 use std::process::Command;
+use super::droid_agent::fetch_real_app_names;
 use super::parser::{parse_dumpsys_package, parse_package_list};
 use super::types::{PackageDetails, PackageInfo};
 use super::utils::run_adb_shell;
 
 #[tauri::command]
-pub async fn list_packages(serial: String, filter: String) -> Result<Vec<PackageInfo>, String> {
-    // 1. Get package paths (-f) and UIDs (-U)
-    let pm_args = vec!["pm", "list", "packages", "-f", "-u", "-U"];
+pub async fn list_packages(app: tauri::AppHandle, serial: String, filter: String) -> Result<Vec<PackageInfo>, String> {
+    // 1. Fetch real app labels via in-device native droid-agent
+    let is_only_user = filter == "user";
+    let labels = fetch_real_app_names(&app, &serial, is_only_user);
+
+    // 2. Get package paths (-f) and UIDs (-U)
+    let pm_args = vec!["pm", "list", "packages", "-f", "-U"];
     let raw_list = run_adb_shell(&serial, &pm_args).unwrap_or_default();
 
-    // 2. Get list of third-party user apps (-3)
+    // 3. Get list of third-party user apps (-3)
     let user_pkgs_raw = run_adb_shell(&serial, &["pm", "list", "packages", "-3"]).unwrap_or_default();
     let user_pkgs: HashSet<String> = user_pkgs_raw
         .lines()
@@ -19,7 +24,7 @@ pub async fn list_packages(serial: String, filter: String) -> Result<Vec<Package
         .map(|s| s.trim().to_string())
         .collect();
 
-    // 3. Get list of disabled apps (-d)
+    // 4. Get list of disabled apps (-d)
     let disabled_pkgs_raw = run_adb_shell(&serial, &["pm", "list", "packages", "-d"]).unwrap_or_default();
     let disabled_pkgs: HashSet<String> = disabled_pkgs_raw
         .lines()
@@ -27,7 +32,7 @@ pub async fn list_packages(serial: String, filter: String) -> Result<Vec<Package
         .map(|s| s.trim().to_string())
         .collect();
 
-    // 4. Get list of running processes
+    // 5. Get list of running processes
     let ps_raw = run_adb_shell(&serial, &["ps", "-A", "-o", "NAME"]).unwrap_or_default();
     let running_pkgs: HashSet<String> = ps_raw.lines().map(|l| l.trim().to_string()).collect();
 
@@ -37,6 +42,7 @@ pub async fn list_packages(serial: String, filter: String) -> Result<Vec<Package
         &disabled_pkgs,
         &running_pkgs,
         &filter,
+        &labels,
     ))
 }
 
