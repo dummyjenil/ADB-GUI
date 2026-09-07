@@ -120,18 +120,18 @@ export const AppTable: React.FC<AppTableProps> = ({
     );
   };
 
-  if (loading) {
+  if (loading && apps.length === 0) {
     return (
       <div className="neo-box p-12 text-center bg-[var(--neo-card-bg)] space-y-3">
         <div className="animate-spin h-8 w-8 border-4 border-[var(--neo-primary)] border-t-transparent rounded-full mx-auto" />
         <p className="text-sm font-extrabold uppercase text-[var(--neo-text)]">
-          Scanning installed packages on device...
+          Discovering apps in real-time...
         </p>
       </div>
     );
   }
 
-  if (apps.length === 0) {
+  if (!loading && apps.length === 0) {
     return (
       <div className="neo-box p-12 text-center bg-[var(--neo-card-bg)] space-y-2">
         <Layers className="h-10 w-10 text-[var(--neo-text-muted)] mx-auto" />

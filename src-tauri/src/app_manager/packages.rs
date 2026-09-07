@@ -1,22 +1,32 @@
 use std::collections::HashSet;
+use std::io::{BufRead, BufReader};
 use std::path::Path;
-use std::process::Command;
-use super::droid_agent::fetch_real_app_names;
+use std::process::{Command, Stdio};
+use tauri::Emitter;
+use super::droid_agent::{ensure_droid_agent, fetch_single_package_name, DroidAgentItem};
 use super::parser::{parse_dumpsys_package, parse_package_list};
 use super::types::{PackageDetails, PackageInfo};
 use super::utils::run_adb_shell;
 
 #[tauri::command]
 pub async fn list_packages(app: tauri::AppHandle, serial: String, filter: String) -> Result<Vec<PackageInfo>, String> {
-    // 1. Fetch real app labels via in-device native droid-agent
     let is_only_user = filter == "user";
-    let labels = fetch_real_app_names(&app, &serial, is_only_user);
 
-    // 2. Get package paths (-f) and UIDs (-U)
-    let pm_args = vec!["pm", "list", "packages", "-f", "-U"];
-    let raw_list = run_adb_shell(&serial, &pm_args).unwrap_or_default();
+    // 1. Ensure droid-agent is ready on device
+    if !ensure_droid_agent(&app, &serial) {
+        let pm_args = vec!["pm", "list", "packages", "-f", "-U"];
+        let raw_list = run_adb_shell(&serial, &pm_args).unwrap_or_default();
+        return Ok(parse_package_list(
+            &raw_list,
+            &HashSet::new(),
+            &HashSet::new(),
+            &HashSet::new(),
+            &filter,
+            &std::collections::HashMap::new(),
+        ));
+    }
 
-    // 3. Get list of third-party user apps (-3)
+    // 2. Fetch metadata sets
     let user_pkgs_raw = run_adb_shell(&serial, &["pm", "list", "packages", "-3"]).unwrap_or_default();
     let user_pkgs: HashSet<String> = user_pkgs_raw
         .lines()
@@ -24,7 +34,6 @@ pub async fn list_packages(app: tauri::AppHandle, serial: String, filter: String
         .map(|s| s.trim().to_string())
         .collect();
 
-    // 4. Get list of disabled apps (-d)
     let disabled_pkgs_raw = run_adb_shell(&serial, &["pm", "list", "packages", "-d"]).unwrap_or_default();
     let disabled_pkgs: HashSet<String> = disabled_pkgs_raw
         .lines()
@@ -32,26 +41,109 @@ pub async fn list_packages(app: tauri::AppHandle, serial: String, filter: String
         .map(|s| s.trim().to_string())
         .collect();
 
-    // 5. Get list of running processes
     let ps_raw = run_adb_shell(&serial, &["ps", "-A", "-o", "NAME"]).unwrap_or_default();
     let running_pkgs: HashSet<String> = ps_raw.lines().map(|l| l.trim().to_string()).collect();
 
-    Ok(parse_package_list(
-        &raw_list,
-        &user_pkgs,
-        &disabled_pkgs,
-        &running_pkgs,
-        &filter,
-        &labels,
-    ))
+    // 3. Spawn child streaming droid-agent
+    let flag = match filter.as_str() {
+        "system" => "--system",
+        "all" => "--all",
+        _ => "--user",
+    };
+
+    let mut child = match Command::new("adb")
+        .args(["-s", &serial, "shell", "/data/local/tmp/droid-agent", flag, "--stream"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(e) => return Err(format!("Failed to spawn streaming agent: {}", e)),
+    };
+
+    let stdout = child.stdout.take().ok_or("Failed to capture agent stdout")?;
+    let reader = BufReader::new(stdout);
+
+    let mut all_results = Vec::new();
+    let mut batch = Vec::new();
+    let mut last_emit = std::time::Instant::now();
+
+    for line in reader.lines().flatten() {
+        let line = line.trim();
+        if line.is_empty() || !line.starts_with('{') {
+            continue;
+        }
+
+        if let Ok(item) = serde_json::from_str::<DroidAgentItem>(line) {
+            let pkg_name = item.package.trim().to_string();
+            if pkg_name.is_empty() {
+                continue;
+            }
+
+            let is_user = user_pkgs.contains(&pkg_name);
+            let app_type = if is_user { "User".to_string() } else { "System".to_string() };
+
+            let is_disabled = disabled_pkgs.contains(&pkg_name);
+            let is_running = running_pkgs.contains(&pkg_name);
+            let status = if is_disabled {
+                "Disabled".to_string()
+            } else if is_running {
+                "Running".to_string()
+            } else {
+                "Enabled".to_string()
+            };
+
+            let has_apk = !item.apk.is_empty() && item.apk.ends_with(".apk");
+
+            let info = PackageInfo {
+                name: if item.name.is_empty() { pkg_name.clone() } else { item.name },
+                package_name: pkg_name,
+                version_name: "1.0".to_string(),
+                version_code: "1".to_string(),
+                size_bytes: 0,
+                size_formatted: "N/A".to_string(),
+                app_type,
+                status,
+                uid: item.uid,
+                apk_path: item.apk,
+                is_debuggable: false,
+                first_install_time: "".to_string(),
+                last_update_time: "".to_string(),
+                has_apk,
+            };
+
+            batch.push(info.clone());
+            all_results.push(info);
+
+            if batch.len() >= 2 || last_emit.elapsed().as_millis() >= 100 {
+                let _ = app.emit("app-manager:package-batch", &batch);
+                batch.clear();
+                last_emit = std::time::Instant::now();
+            }
+        }
+    }
+
+    let _ = child.wait();
+
+    if !batch.is_empty() {
+        let _ = app.emit("app-manager:package-batch", &batch);
+    }
+    let _ = app.emit("app-manager:discovery-complete", all_results.len());
+
+    Ok(all_results)
 }
 
 #[tauri::command]
-pub async fn get_package_details(serial: String, package_name: String) -> Result<PackageDetails, String> {
+pub async fn get_package_details(
+    app: tauri::AppHandle,
+    serial: String,
+    package_name: String,
+) -> Result<PackageDetails, String> {
     let dump = run_adb_shell(&serial, &["dumpsys", "package", &package_name]).unwrap_or_default();
     let appops = run_adb_shell(&serial, &["cmd", "appops", "get", &package_name]).unwrap_or_default();
+    let real_name = fetch_single_package_name(&app, &serial, &package_name);
 
-    Ok(parse_dumpsys_package(&package_name, &dump, &appops))
+    Ok(parse_dumpsys_package(&package_name, &dump, &appops, real_name))
 }
 
 #[tauri::command]

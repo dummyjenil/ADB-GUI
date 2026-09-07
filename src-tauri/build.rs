@@ -9,7 +9,12 @@ fn main() {
         let script = Path::new(&manifest_dir).join("../native-agent/build_and_deploy.sh");
         if script.exists() {
             println!("cargo:warning=Building native-agent for Android ARM64...");
-            let _ = Command::new("bash").arg(script).status();
+            let _ = Command::new("bash")
+                .arg(script)
+                .env_remove("CARGO_ENCODED_RUSTFLAGS")
+                .env_remove("RUSTFLAGS")
+                .env("RUSTFLAGS", "-C linker=rust-lld")
+                .status();
         }
     }
 

@@ -90,63 +90,80 @@ pub fn parse_package_list(
     result
 }
 
-pub fn parse_dumpsys_package(package_name: &str, dump: &str, appops: &str) -> PackageDetails {
+pub fn parse_dumpsys_package(
+    package_name: &str,
+    dump: &str,
+    appops: &str,
+    real_name: Option<String>,
+) -> PackageDetails {
     let mut permissions = Vec::new();
     let mut activities = Vec::new();
     let mut services = Vec::new();
     let mut receivers = Vec::new();
     let mut providers = Vec::new();
+
+    let mut version_name = String::new();
+    let mut version_code = String::new();
+    let mut apk_path = String::new();
+    let mut uid = None;
     let mut is_debuggable = false;
     let mut first_install_time = String::new();
     let mut last_update_time = String::new();
-    let mut version_name = String::new();
-    let mut version_code = String::new();
-    let mut uid = None;
-    let mut apk_path = String::new();
 
     let mut current_section = "";
+    let prefix_match = format!(" {}.", package_name);
 
     for line in dump.lines() {
         let trimmed = line.trim();
 
         if trimmed.starts_with("versionName=") {
-            version_name = trimmed.trim_start_matches("versionName=").to_string();
+            version_name = trimmed[12..].to_string();
         } else if trimmed.starts_with("versionCode=") {
-            version_code = trimmed.trim_start_matches("versionCode=").to_string();
-        } else if trimmed.starts_with("userId=") || trimmed.starts_with("appId=") {
-            if uid.is_none() {
-                uid = Some(trimmed.to_string());
+            if let Some(code) = trimmed[12..].split_whitespace().next() {
+                version_code = code.to_string();
             }
         } else if trimmed.starts_with("codePath=") {
-            apk_path = trimmed.trim_start_matches("codePath=").to_string();
+            apk_path = trimmed[9..].to_string();
+        } else if trimmed.starts_with("userId=") {
+            if let Some(u) = trimmed[7..].split_whitespace().next() {
+                uid = Some(u.to_string());
+            }
+        } else if trimmed.starts_with("pkgFlags=[") {
+            if trimmed.contains("DEBUGGABLE") {
+                is_debuggable = true;
+            }
         } else if trimmed.starts_with("firstInstallTime=") {
-            first_install_time = trimmed.trim_start_matches("firstInstallTime=").to_string();
+            first_install_time = trimmed[17..].to_string();
         } else if trimmed.starts_with("lastUpdateTime=") {
-            last_update_time = trimmed.trim_start_matches("lastUpdateTime=").to_string();
-        } else if trimmed.contains("DEBUGGABLE") {
-            is_debuggable = true;
+            last_update_time = trimmed[15..].to_string();
         }
 
-        let lower = trimmed.to_lowercase();
-        if lower.starts_with("requested permissions:") || lower.starts_with("declared permissions:") {
+        // Section tracking
+        if trimmed.starts_with("requested permissions:") || trimmed.starts_with("install permissions:") || trimmed.starts_with("runtime permissions:") {
             current_section = "permissions";
-        } else if lower.starts_with("activity resolver table:") || lower == "activities:" {
+            continue;
+        } else if trimmed.starts_with("Activity Resolver Table:") {
             current_section = "activities";
-        } else if lower.starts_with("service resolver table:") || lower == "services:" {
-            current_section = "services";
-        } else if lower.starts_with("receiver resolver table:") || lower == "receivers:" {
+            continue;
+        } else if trimmed.starts_with("Receiver Resolver Table:") {
             current_section = "receivers";
-        } else if lower.starts_with("provider resolver table:") || lower.starts_with("registered contentproviders:") || lower == "providers:" {
+            continue;
+        } else if trimmed.starts_with("Service Resolver Table:") {
+            current_section = "services";
+            continue;
+        } else if trimmed.starts_with("Provider Resolver Table:") {
             current_section = "providers";
-        } else if trimmed.starts_with("Key Set Manager:") || trimmed.starts_with("Packages:") || trimmed.starts_with("Shared users:") {
+            continue;
+        } else if trimmed.starts_with("Packages:") || (trimmed.ends_with(':') && !trimmed.contains('.')) {
             current_section = "";
         }
 
-        let prefix_match = format!("{}/", package_name);
-
+        // Parse section contents
         if current_section == "permissions" {
-            if (trimmed.contains("android.permission.") || trimmed.contains('.')) && !trimmed.contains(':') {
-                permissions.push(trimmed.to_string());
+            if trimmed.starts_with("android.permission.") || trimmed.starts_with("com.") || trimmed.starts_with("org.") {
+                if let Some(perm) = trimmed.split(':').next() {
+                    permissions.push(perm.trim().to_string());
+                }
             }
         } else if current_section == "activities" {
             if trimmed.contains(&prefix_match) || (trimmed.contains('/') && trimmed.contains(package_name)) {
@@ -154,16 +171,16 @@ pub fn parse_dumpsys_package(package_name: &str, dump: &str, appops: &str) -> Pa
                     activities.push(comp);
                 }
             }
-        } else if current_section == "services" {
-            if trimmed.contains(&prefix_match) || (trimmed.contains('/') && trimmed.contains(package_name)) {
-                if let Some(comp) = extract_component_name(trimmed, package_name) {
-                    services.push(comp);
-                }
-            }
         } else if current_section == "receivers" {
             if trimmed.contains(&prefix_match) || (trimmed.contains('/') && trimmed.contains(package_name)) {
                 if let Some(comp) = extract_component_name(trimmed, package_name) {
                     receivers.push(comp);
+                }
+            }
+        } else if current_section == "services" {
+            if trimmed.contains(&prefix_match) || (trimmed.contains('/') && trimmed.contains(package_name)) {
+                if let Some(comp) = extract_component_name(trimmed, package_name) {
+                    services.push(comp);
                 }
             }
         } else if current_section == "providers" {
@@ -194,8 +211,10 @@ pub fn parse_dumpsys_package(package_name: &str, dump: &str, appops: &str) -> Pa
 
     let app_ops_list: Vec<String> = appops.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect();
 
+    let display_name = real_name.unwrap_or_else(|| package_name.to_string());
+
     let info = PackageInfo {
-        name: format_app_name(package_name),
+        name: display_name,
         package_name: package_name.to_string(),
         version_name: if version_name.is_empty() { "1.0".to_string() } else { version_name },
         version_code: if version_code.is_empty() { "1".to_string() } else { version_code },

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { PackageInfo, FilterOption } from "../../types/app_manager";
 import { AppFiltersBar } from "./AppFiltersBar";
@@ -30,9 +31,10 @@ interface AppManagerProps {
 }
 
 export const AppManager: React.FC<AppManagerProps> = ({ activeDevice, onViewCommand, onOpenLogcat }) => {
-  const [apps, setApps] = useState<PackageInfo[]>([]);
+  const [userApps, setUserApps] = useState<PackageInfo[]>([]);
+  const [systemApps, setSystemApps] = useState<PackageInfo[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeFilters, setActiveFilters] = useState<FilterOption[]>([]);
+  const [activeFilters, setActiveFilters] = useState<FilterOption[]>(["user"]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
   const [inspectedPackage, setInspectedPackage] = useState<PackageInfo | null>(null);
@@ -45,24 +47,134 @@ export const AppManager: React.FC<AppManagerProps> = ({ activeDevice, onViewComm
     setLogs((prev) => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev]);
   };
 
-  const fetchPackages = useCallback(async () => {
-    if (!activeDevice) return;
-    setLoading(true);
-    try {
-      const res: PackageInfo[] = await invoke("list_packages", {
-        serial: activeDevice,
-        filter: "all",
-      });
-      setApps(res);
-    } catch (err: any) {
-      addLog(`[ERROR] Failed to fetch package list: ${String(err)}`);
-    } finally {
-      setLoading(false);
-    }
-  }, [activeDevice]);
+  // Active pool based on selected primary category
+  const isSystemActive = activeFilters.includes("system");
+  const isAllActive = activeFilters.includes("all");
+
+  const apps = isAllActive
+    ? [...userApps, ...systemApps]
+    : isSystemActive
+    ? systemApps
+    : userApps;
+
+  // Listen for real-time progressive app discovery stream
+  useEffect(() => {
+    let unlistenBatch: (() => void) | undefined;
+    let unlistenDone: (() => void) | undefined;
+
+    const setupStream = async () => {
+      try {
+        unlistenBatch = await listen<PackageInfo[]>("app-manager:package-batch", (event) => {
+          const incoming = event.payload;
+          if (!incoming || incoming.length === 0) return;
+
+          const u = incoming.filter((a) => a.app_type === "User");
+          const s = incoming.filter((a) => a.app_type === "System");
+
+          if (u.length > 0) {
+            setUserApps((prev) => {
+              const map = new Map(prev.map((a) => [a.package_name, a]));
+              for (const item of u) map.set(item.package_name, item);
+              return Array.from(map.values());
+            });
+          }
+
+          if (s.length > 0) {
+            setSystemApps((prev) => {
+              const map = new Map(prev.map((a) => [a.package_name, a]));
+              for (const item of s) map.set(item.package_name, item);
+              return Array.from(map.values());
+            });
+          }
+        });
+
+        unlistenDone = await listen<number>("app-manager:discovery-complete", () => {
+          setLoading(false);
+        });
+      } catch (err) {
+        console.error("Failed to setup package discovery stream listener:", err);
+      }
+    };
+
+    setupStream();
+
+    return () => {
+      if (unlistenBatch) unlistenBatch();
+      if (unlistenDone) unlistenDone();
+    };
+  }, []);
+
+  const fetchPackages = useCallback(
+    async (forceReload = false) => {
+      if (!activeDevice) return;
+
+      const isSystem = activeFilters.includes("system");
+      const isAll = activeFilters.includes("all");
+
+      // Use cache if already discovered and not force refreshing
+      if (!forceReload) {
+        if (!isSystem && !isAll && userApps.length > 0) return;
+        if (isSystem && systemApps.length > 0) return;
+        if (isAll && userApps.length > 0 && systemApps.length > 0) return;
+      }
+
+      setLoading(true);
+
+      let queryFilter = "user";
+      if (isAll) {
+        if (forceReload) {
+          setUserApps([]);
+          setSystemApps([]);
+          queryFilter = "all";
+        } else if (userApps.length === 0) {
+          queryFilter = "user";
+        } else {
+          queryFilter = "system";
+        }
+      } else if (isSystem) {
+        if (forceReload) setSystemApps([]);
+        queryFilter = "system";
+      } else {
+        if (forceReload) setUserApps([]);
+        queryFilter = "user";
+      }
+
+      try {
+        const res: PackageInfo[] = await invoke("list_packages", {
+          serial: activeDevice,
+          filter: queryFilter,
+        });
+
+        if (res && res.length > 0) {
+          const u = res.filter((a) => a.app_type === "User");
+          const s = res.filter((a) => a.app_type === "System");
+
+          if (u.length > 0) {
+            setUserApps((prev) => {
+              const map = new Map(prev.map((a) => [a.package_name, a]));
+              for (const item of u) map.set(item.package_name, item);
+              return Array.from(map.values());
+            });
+          }
+          if (s.length > 0) {
+            setSystemApps((prev) => {
+              const map = new Map(prev.map((a) => [a.package_name, a]));
+              for (const item of s) map.set(item.package_name, item);
+              return Array.from(map.values());
+            });
+          }
+        }
+      } catch (err: any) {
+        addLog(`[ERROR] Failed to fetch package list: ${String(err)}`);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [activeDevice, activeFilters, userApps.length, systemApps.length]
+  );
 
   useEffect(() => {
-    fetchPackages();
+    fetchPackages(false);
   }, [fetchPackages]);
 
   // Drag & drop window listener
@@ -376,7 +488,7 @@ export const AppManager: React.FC<AppManagerProps> = ({ activeDevice, onViewComm
         setActiveFilters={setActiveFilters}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
-        onRefresh={fetchPackages}
+        onRefresh={() => fetchPackages(true)}
         loading={loading}
         totalCount={apps.length}
         filteredCount={filteredApps.length}

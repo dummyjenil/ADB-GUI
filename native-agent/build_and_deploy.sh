@@ -5,6 +5,8 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 cd "$DIR"
 
 echo "==> Building droid-agent for aarch64-unknown-linux-musl (ARM64-v8a)..."
+unset CARGO_ENCODED_RUSTFLAGS
+unset CARGO_RUSTC_FLAG
 RUSTFLAGS="-C linker=rust-lld" cargo build --target aarch64-unknown-linux-musl --release
 
 DEST_DIR="$DIR/../src-tauri/resources"

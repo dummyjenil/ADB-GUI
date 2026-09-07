@@ -35,19 +35,9 @@ pub fn format_size(bytes: u64) -> String {
     }
 }
 
-// Format friendly label from package name
+// Fallback app name if dynamic resolution is unavailable
 pub fn format_app_name(pkg: &str) -> String {
-    let parts: Vec<&str> = pkg.split('.').collect();
-    if let Some(last) = parts.last() {
-        let name = last.replace('_', " ");
-        let mut c = name.chars();
-        match c.next() {
-            None => pkg.to_string(),
-            Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-        }
-    } else {
-        pkg.to_string()
-    }
+    pkg.to_string()
 }
 
 // Extract clean component name like "com.package/.ActivityName"

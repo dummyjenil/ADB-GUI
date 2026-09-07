@@ -4,10 +4,13 @@ use std::process::Command;
 use serde::Deserialize;
 use tauri::Manager;
 
-#[derive(Debug, Deserialize)]
-struct DroidAgentApp {
+#[derive(Debug, Deserialize, Clone)]
+pub struct DroidAgentItem {
     pub package: String,
     pub name: String,
+    #[serde(default)]
+    pub apk: String,
+    pub uid: Option<String>,
 }
 
 pub fn locate_droid_agent_binary(app_handle: &tauri::AppHandle) -> Option<PathBuf> {
@@ -54,19 +57,19 @@ pub fn locate_droid_agent_binary(app_handle: &tauri::AppHandle) -> Option<PathBu
 }
 
 pub fn ensure_droid_agent(app_handle: &tauri::AppHandle, serial: &str) -> bool {
-    // Check if binary already exists and is executable in /data/local/tmp
+    // Check if binary already exists and is executable on device
     let check = Command::new("adb")
-        .args(["-s", serial, "shell", "[ -x /data/local/tmp/droid-agent ] && echo OK"])
+        .args(["-s", serial, "shell", "/data/local/tmp/droid-agent -v"])
         .output();
 
     if let Ok(out) = check {
-        let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
-        if stdout == "OK" {
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        if stdout.contains("droid-agent") {
             return true;
         }
     }
 
-    // Not on device or not executable, locate local binary and push
+    // Not on device or outdated, locate local binary and push
     let local_bin = match locate_droid_agent_binary(app_handle) {
         Some(p) => p,
         None => return false,
@@ -100,10 +103,8 @@ pub fn fetch_real_app_names(
         return map;
     }
 
-    let mut args = vec!["-s", serial, "shell", "/data/local/tmp/droid-agent", "--json"];
-    if only_user {
-        args.push("--user");
-    }
+    let flag = if only_user { "--user" } else { "--all" };
+    let args = vec!["-s", serial, "shell", "/data/local/tmp/droid-agent", flag, "--json"];
 
     let output = match Command::new("adb").args(&args).output() {
         Ok(o) => o,
@@ -115,7 +116,7 @@ pub fn fetch_real_app_names(
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if let Ok(apps) = serde_json::from_str::<Vec<DroidAgentApp>>(&stdout) {
+    if let Ok(apps) = serde_json::from_str::<Vec<DroidAgentItem>>(&stdout) {
         for app in apps {
             if !app.name.is_empty() {
                 map.insert(app.package, app.name);
@@ -125,3 +126,37 @@ pub fn fetch_real_app_names(
 
     map
 }
+
+pub fn fetch_single_package_name(
+    app_handle: &tauri::AppHandle,
+    serial: &str,
+    package_name: &str,
+) -> Option<String> {
+    if !ensure_droid_agent(app_handle, serial) {
+        return None;
+    }
+
+    let output = Command::new("adb")
+        .args(["-s", serial, "shell", "/data/local/tmp/droid-agent", "--search", package_name])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    for line in stdout.lines() {
+        if let Some((pkg, name)) = line.split_once(" = ") {
+            if pkg.trim() == package_name {
+                let clean = name.trim();
+                if !clean.is_empty() && clean != "[UNKNOWN]" {
+                    return Some(clean.to_string());
+                }
+            }
+        }
+    }
+
+    None
+}
+

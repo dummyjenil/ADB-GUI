@@ -74,11 +74,24 @@ struct AppEntry {
     real_name: String,
 }
 
-fn get_installed_packages(only_user: bool) -> Vec<(String, String, Option<String>)> {
+#[derive(Clone, Copy, PartialEq)]
+enum AppFilter {
+    User,
+    System,
+    All,
+}
+
+fn get_installed_packages(filter: AppFilter) -> Vec<(String, String, Option<String>)> {
     let mut cmd = Command::new("pm");
     cmd.arg("list").arg("packages").arg("-f").arg("-U");
-    if only_user {
-        cmd.arg("-3");
+    match filter {
+        AppFilter::User => {
+            cmd.arg("-3");
+        }
+        AppFilter::System => {
+            cmd.arg("-s");
+        }
+        AppFilter::All => {}
     }
 
     let output = match cmd.output() {
@@ -111,8 +124,15 @@ fn get_installed_packages(only_user: bool) -> Vec<(String, String, Option<String
     list
 }
 
-fn dump_all_apps_parallel(only_user: bool, json_output: bool, search_query: Option<&str>) {
-    let packages = get_installed_packages(only_user);
+use std::io::Write;
+
+fn dump_all_apps_parallel(
+    filter: AppFilter,
+    json_output: bool,
+    stream_output: bool,
+    search_query: Option<&str>,
+) {
+    let packages = get_installed_packages(filter);
     let total = packages.len();
     if total == 0 {
         if json_output {
@@ -152,7 +172,24 @@ fn dump_all_apps_parallel(only_user: bool, json_output: bool, search_query: Opti
                 continue;
             }
         }
-        results.push(entry);
+
+        if stream_output {
+            let safe_name = entry.real_name.replace('\\', "\\\\").replace('"', "\\\"");
+            let safe_pkg = entry.package.replace('\\', "\\\\").replace('"', "\\\"");
+            let safe_apk = entry.apk_path.replace('\\', "\\\\").replace('"', "\\\"");
+            let uid_str = entry.uid.as_deref().unwrap_or("");
+            println!(
+                "{{\"package\":\"{}\",\"name\":\"{}\",\"apk\":\"{}\",\"uid\":\"{}\"}}",
+                safe_pkg, safe_name, safe_apk, uid_str
+            );
+            let _ = std::io::stdout().flush();
+        } else {
+            results.push(entry);
+        }
+    }
+
+    if stream_output {
+        return;
     }
 
     if json_output {
@@ -185,8 +222,10 @@ fn main() {
         eprintln!("Usage: droid-agent [OPTIONS] | <apk_path1> [apk_path2 ...]");
         eprintln!("Options:");
         eprintln!("  --all           Extract labels for all installed packages");
-        eprintln!("  --user          Extract labels for 3rd-party user apps");
+        eprintln!("  --user          Extract labels for 3rd-party user apps (default)");
+        eprintln!("  --system        Extract labels for system apps");
         eprintln!("  --json          Output results as JSON");
+        eprintln!("  --stream        Output results as real-time NDJSON stream");
         eprintln!("  --search <Q>    Search installed apps by real name or package");
         eprintln!("  --version       Print version");
         return;
@@ -197,22 +236,36 @@ fn main() {
         return;
     }
 
-    let is_json = args.iter().any(|a| a == "--json");
+    let is_stream = args.iter().any(|a| a == "--stream" || a == "--ndjson");
+    let is_json = args.iter().any(|a| a == "--json") || is_stream;
     let is_all = args.iter().any(|a| a == "--all");
+    let is_system = args.iter().any(|a| a == "--system");
     let is_user = args.iter().any(|a| a == "--user");
     let search_idx = args.iter().position(|a| a == "--search");
     let search_query = search_idx.and_then(|idx| args.get(idx + 1)).map(|s| s.as_str());
 
-    if is_all || is_user || search_query.is_some() {
-        dump_all_apps_parallel(!is_all, is_json, search_query);
+    let direct_apks: Vec<&str> = args[1..]
+        .iter()
+        .filter(|a| !a.starts_with('-'))
+        .filter(|a| search_query.map_or(true, |sq| *a != sq))
+        .map(|s| s.as_str())
+        .collect();
+
+    if direct_apks.is_empty() || is_all || is_user || is_system || is_stream || search_query.is_some() {
+        let filter = if is_all {
+            AppFilter::All
+        } else if is_system {
+            AppFilter::System
+        } else {
+            AppFilter::User
+        };
+
+        dump_all_apps_parallel(filter, is_json, is_stream, search_query);
         return;
     }
 
     // Direct APK path argument(s)
-    for apk_path in &args[1..] {
-        if apk_path.starts_with('-') {
-            continue;
-        }
+    for apk_path in direct_apks {
         let name = extract_apk_label(apk_path).unwrap_or_else(|| "[UNKNOWN]".to_string());
         println!("{} = {}", apk_path, name);
     }
