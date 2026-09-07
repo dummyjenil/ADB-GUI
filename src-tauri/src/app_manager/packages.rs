@@ -10,7 +10,7 @@ use super::utils::run_adb_shell;
 
 #[tauri::command]
 pub async fn list_packages(app: tauri::AppHandle, serial: String, filter: String) -> Result<Vec<PackageInfo>, String> {
-    let is_only_user = filter == "user";
+    let _is_only_user = filter == "user";
 
     // 1. Ensure droid-agent is ready on device
     if !ensure_droid_agent(&app, &serial) {
