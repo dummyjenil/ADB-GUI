@@ -63,6 +63,7 @@ pub fn run() {
             launch_app,
             get_apk_path,
             extract_apk,
+            extract_apks,
             backup_app_data,
             execute_pm_command,
             pick_multiple_apk_files,

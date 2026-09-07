@@ -6,6 +6,7 @@ import { PackageInfo, FilterOption } from "../../types/app_manager";
 import { AppFiltersBar } from "./AppFiltersBar";
 import { AppTable } from "./AppTable";
 import { PackageDetailModal } from "./PackageDetailModal";
+import { ExtractModal } from "./ExtractModal";
 import { AdvancedPmPanel } from "./AdvancedPmPanel";
 import { PermissionsMatrixModal } from "./PermissionsMatrixModal";
 import { Card, Button, EmptyState } from "../ui";
@@ -38,6 +39,7 @@ export const AppManager: React.FC<AppManagerProps> = ({ activeDevice, onViewComm
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPackages, setSelectedPackages] = useState<string[]>([]);
   const [inspectedPackage, setInspectedPackage] = useState<PackageInfo | null>(null);
+  const [extractModalApp, setExtractModalApp] = useState<PackageInfo | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const [showAdvancedPm, setShowAdvancedPm] = useState(false);
   const [showPermMatrix, setShowPermMatrix] = useState(false);
@@ -295,20 +297,8 @@ export const AppManager: React.FC<AppManagerProps> = ({ activeDevice, onViewComm
     }
   };
 
-  const handleExtractApk = async (pkgName: string) => {
-    try {
-      const dir: string | null = await invoke("pick_save_directory");
-      if (dir) {
-        const res: string = await invoke("extract_apk", {
-          serial: activeDevice,
-          packageName: pkgName,
-          targetDir: dir,
-        });
-        addLog(`[SUCCESS] ${res}`);
-      }
-    } catch (err: any) {
-      addLog(`[ERROR] ${String(err)}`);
-    }
+  const handleExtractApk = (app: PackageInfo) => {
+    setExtractModalApp(app);
   };
 
   const handleBackupData = async (pkgName: string) => {
@@ -522,6 +512,16 @@ export const AppManager: React.FC<AppManagerProps> = ({ activeDevice, onViewComm
           addLog={addLog}
           onViewCommand={onViewCommand}
           onOpenLogcat={onOpenLogcat}
+        />
+      )}
+
+      {/* APK / APKS Extraction Modal */}
+      {extractModalApp && activeDevice && (
+        <ExtractModal
+          app={extractModalApp}
+          activeDevice={activeDevice}
+          onClose={() => setExtractModalApp(null)}
+          onLog={addLog}
         />
       )}
 

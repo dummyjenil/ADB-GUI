@@ -32,7 +32,7 @@ interface AppTableProps {
   onDisable: (pkgName: string) => void;
   onEnable: (pkgName: string) => void;
   onClearData: (pkgName: string) => void;
-  onExtractApk: (pkgName: string) => void;
+  onExtractApk: (app: PackageInfo) => void;
   onBackupData: (pkgName: string) => void;
   onOpenLogcat?: (pkgName: string) => void;
   loading: boolean;
@@ -289,9 +289,9 @@ export const AppTable: React.FC<AppTableProps> = ({
                     </button>
 
                     <button
-                      onClick={() => onExtractApk(app.package_name)}
+                      onClick={() => onExtractApk(app)}
                       className="p-1.5 rounded text-purple-500 hover:bg-purple-500/10 hover:border-purple-500/50 border border-transparent transition-all"
-                      title="Extract APK"
+                      title="Extract APK / APKS"
                     >
                       <Download className="h-4 w-4" />
                     </button>

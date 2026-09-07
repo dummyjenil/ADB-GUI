@@ -2,6 +2,7 @@ pub mod types;
 pub mod utils;
 pub mod parser;
 pub mod packages;
+pub mod zip_writer;
 pub mod droid_agent;
 pub mod lifecycle;
 pub mod permissions;
@@ -22,7 +23,7 @@ pub use parser::*;
 
 // Re-export all Tauri command functions
 pub use packages::{
-    backup_app_data, execute_pm_command, extract_apk, get_apk_path, get_package_details,
+    backup_app_data, execute_pm_command, extract_apk, extract_apks, get_apk_path, get_package_details,
     list_packages,
 };
 

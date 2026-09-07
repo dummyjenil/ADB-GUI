@@ -164,7 +164,13 @@ pub async fn get_apk_path(serial: String, package_name: String) -> Result<Vec<St
 #[tauri::command]
 pub async fn extract_apk(serial: String, package_name: String, target_dir: String) -> Result<String, String> {
     let paths = get_apk_path(serial.clone(), package_name.clone()).await?;
-    let remote_apk = &paths[0];
+    let is_split = paths.len() > 1;
+
+    // Pick base.apk if present, else first path
+    let remote_apk = paths
+        .iter()
+        .find(|p| p.ends_with("/base.apk") || p.ends_with("base.apk"))
+        .unwrap_or(&paths[0]);
 
     let dest_filename = format!("{}.apk", package_name);
     let dest_path = Path::new(&target_dir).join(dest_filename);
@@ -176,9 +182,84 @@ pub async fn extract_apk(serial: String, package_name: String, target_dir: Strin
         .map_err(|e| format!("Failed to pull APK: {}", e))?;
 
     if output.status.success() {
-        Ok(format!("Extracted APK to {}", dest_str))
+        if is_split {
+            Ok(format!("Extracted Base APK to {} (Note: App has {} splits, consider extracting APKS for complete bundle)", dest_str, paths.len()))
+        } else {
+            Ok(format!("Extracted APK to {}", dest_str))
+        }
     } else {
         Err(String::from_utf8_lossy(&output.stderr).to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn extract_apks(serial: String, package_name: String, target_dir: String) -> Result<String, String> {
+    let paths = get_apk_path(serial.clone(), package_name.clone()).await?;
+    let temp_dir = std::env::temp_dir().join(format!(
+        "adb_extract_{}_{}",
+        package_name,
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+    ));
+    std::fs::create_dir_all(&temp_dir).map_err(|e| format!("Failed to create temp directory: {}", e))?;
+
+    let mut pulled_entries = Vec::new();
+
+    for (idx, remote_path) in paths.iter().enumerate() {
+        let filename = Path::new(remote_path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("");
+        
+        let local_filename = if filename.is_empty() {
+            format!("split_{}.apk", idx)
+        } else {
+            filename.to_string()
+        };
+
+        let local_path = temp_dir.join(&local_filename);
+        let pull_out = Command::new("adb")
+            .args(["-s", &serial, "pull", remote_path, &local_path.to_string_lossy()])
+            .output()
+            .map_err(|e| {
+                let _ = std::fs::remove_dir_all(&temp_dir);
+                format!("Failed to pull split APK {}: {}", remote_path, e)
+            })?;
+
+        if !pull_out.status.success() {
+            let err = String::from_utf8_lossy(&pull_out.stderr).to_string();
+            let _ = std::fs::remove_dir_all(&temp_dir);
+            return Err(format!("Failed pulling {}: {}", remote_path, err));
+        }
+
+        pulled_entries.push((local_filename, local_path));
+    }
+
+    let dest_filename = format!("{}.apks", package_name);
+    let dest_path = Path::new(&target_dir).join(&dest_filename);
+
+    let archive_entries: Vec<(&str, &Path)> = pulled_entries
+        .iter()
+        .map(|(name, path)| (name.as_str(), path.as_path()))
+        .collect();
+
+    let res = super::zip_writer::create_apks_archive(&archive_entries, &dest_path);
+    let _ = std::fs::remove_dir_all(&temp_dir);
+
+    match res {
+        Ok(_) => {
+            let size = std::fs::metadata(&dest_path).map(|m| m.len()).unwrap_or(0);
+            let size_mb = size as f64 / (1024.0 * 1024.0);
+            Ok(format!(
+                "Extracted APKS bundle to {} ({:.2} MB, {} splits)",
+                dest_path.to_string_lossy(),
+                size_mb,
+                paths.len()
+            ))
+        }
+        Err(e) => Err(format!("Failed to build .apks bundle archive: {}", e)),
     }
 }
 

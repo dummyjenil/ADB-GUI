@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { PackageInfo, PackageDetails } from "../../types/app_manager";
 import { PermissionsManagerPanel } from "./PermissionsManagerPanel";
 import { ActivityIntentManagerPanel } from "./ActivityIntentManagerPanel";
+import { ExtractModal } from "./ExtractModal";
 import { Modal, Tabs, Badge, Button, SearchInput } from "../ui";
 import {
   Play,
@@ -48,6 +49,7 @@ export const PackageDetailModal: React.FC<PackageDetailModalProps> = ({
   const [details, setDetails] = useState<PackageDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showExtractModal, setShowExtractModal] = useState(false);
   const [componentSearch, setComponentSearch] = useState("");
 
   useEffect(() => {
@@ -129,23 +131,8 @@ export const PackageDetailModal: React.FC<PackageDetailModalProps> = ({
       userOnly ? "Uninstalled for User" : "Uninstalled System-Wide"
     );
 
-  const handleExtract = async () => {
-    try {
-      const dir: string | null = await invoke("pick_save_directory");
-      if (dir) {
-        handleAction(
-          () =>
-            invoke("extract_apk", {
-              serial: activeDevice,
-              packageName: packageInfo.package_name,
-              targetDir: dir,
-            }),
-          "Extracted APK"
-        );
-      }
-    } catch (e: any) {
-      addLog(`[ERROR] File picker error: ${String(e)}`);
-    }
+  const handleExtract = () => {
+    setShowExtractModal(true);
   };
 
   const handleBackup = async () => {
@@ -204,7 +191,7 @@ export const PackageDetailModal: React.FC<PackageDetailModalProps> = ({
             Force Stop
           </Button>
           <Button size="sm" variant="accent" icon={<Download className="h-3.5 w-3.5" />} onClick={handleExtract} disabled={actionLoading}>
-            Extract APK
+            Extract APK / APKS
           </Button>
           <Button size="sm" variant="secondary" icon={<RefreshCcw className="h-3.5 w-3.5" />} onClick={handleClearData} disabled={actionLoading}>
             Clear Data
@@ -452,6 +439,15 @@ export const PackageDetailModal: React.FC<PackageDetailModalProps> = ({
           )}
         </div>
       </div>
+
+      {showExtractModal && (
+        <ExtractModal
+          app={packageInfo}
+          activeDevice={activeDevice}
+          onClose={() => setShowExtractModal(false)}
+          onLog={addLog}
+        />
+      )}
     </Modal>
   );
 };
