@@ -81,10 +81,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "DroidCrack ${{ github.ref_name }}"
+          tagName: v__VERSION__
+          releaseName: "DroidCrack v__VERSION__"
           releaseBody: |
-            ## DroidCrack Release ${{ github.ref_name }}
+            ## DroidCrack v__VERSION__
 
             ### Downloads for all operating systems:
             - **Windows**: `.exe` (NSIS Installer) / `.msi`
