@@ -1,10 +1,17 @@
+use tauri::AppHandle;
+#[cfg(unix)]
+use tauri::Emitter;
+#[cfg(unix)]
 use std::process::Stdio;
+#[cfg(unix)]
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter};
+#[cfg(unix)]
 use tokio::process::Command;
+#[cfg(unix)]
 use tokio::sync::Mutex;
 
 use super::state::get_interactive_sessions;
+#[cfg(unix)]
 use super::types::InteractiveSession;
 
 #[tauri::command]
