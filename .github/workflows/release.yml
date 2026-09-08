@@ -53,6 +53,9 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Add ARM64 MUSL Target (for Android Native Agent)
+        run: rustup target add aarch64-unknown-linux-musl
+
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
         with:
